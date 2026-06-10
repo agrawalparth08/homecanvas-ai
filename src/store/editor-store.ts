@@ -12,7 +12,7 @@ export interface Selection {
   id: string;
 }
 
-export type ViewMode = 'orbit' | 'top' | 'walk';
+export type ViewMode = 'orbit' | 'top' | 'walk' | 'tour';
 
 interface EditorState {
   projectId: ProjectId;
@@ -26,6 +26,8 @@ interface EditorState {
   activeFloorId: string | null;
   viewMode: ViewMode;
   showBefore: boolean;
+  tourIndex: number;
+  tourPlaying: boolean;
   undoStack: CommitLogEntry[];
   redoStack: CommitLogEntry[];
   lastErrors: ValidationIssue[];
@@ -40,6 +42,15 @@ interface EditorState {
   setActiveFloor: (floorId: string) => void;
   setViewMode: (mode: ViewMode) => void;
   setShowBefore: (show: boolean) => void;
+  startTour: () => void;
+  exitTour: () => void;
+  tourNext: () => void;
+  tourPrev: () => void;
+  setTourIndex: (i: number) => void;
+  toggleTourPlay: () => void;
+  /** Autoplay advance — keeps playing (unlike setTourIndex which pauses). */
+  tourAdvance: (i: number) => void;
+  tourStopPlaying: () => void;
   saveVariant: (name: string) => Promise<boolean>;
   loadVariant: (variantId: string) => Promise<void>;
   clearErrors: () => void;
@@ -77,6 +88,8 @@ export const useEditor = create<EditorState>((set, get) => ({
   activeFloorId: null,
   viewMode: 'orbit',
   showBefore: false,
+  tourIndex: 0,
+  tourPlaying: false,
   undoStack: [],
   redoStack: [],
   lastErrors: [],
@@ -166,9 +179,22 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
 
   select: (selection) => set({ selection }),
-  setActiveFloor: (floorId) => set({ activeFloorId: floorId, selection: null }),
+  setActiveFloor: (floorId) => set({ activeFloorId: floorId, selection: null, tourIndex: 0 }),
   setViewMode: (viewMode) => set({ viewMode }),
   setShowBefore: (showBefore) => set({ showBefore }),
+
+  startTour: () => set({ viewMode: 'tour', tourIndex: 0, tourPlaying: true, selection: null }),
+  exitTour: () => set({ viewMode: 'orbit', tourPlaying: false }),
+  tourNext: () => {
+    const { scene, activeFloorId, tourIndex } = get();
+    const count = scene?.floors.find((f) => f.id === activeFloorId)?.rooms.length ?? 0;
+    set({ tourIndex: Math.min(tourIndex + 1, Math.max(0, count - 1)), tourPlaying: false });
+  },
+  tourPrev: () => set({ tourIndex: Math.max(0, get().tourIndex - 1), tourPlaying: false }),
+  setTourIndex: (i) => set({ tourIndex: Math.max(0, i), tourPlaying: false }),
+  toggleTourPlay: () => set({ tourPlaying: !get().tourPlaying }),
+  tourAdvance: (i) => set({ tourIndex: Math.max(0, i) }),
+  tourStopPlaying: () => set({ tourPlaying: false }),
 
   saveVariant: async (name) => {
     const { scene, projectId, activeVariantId } = get();

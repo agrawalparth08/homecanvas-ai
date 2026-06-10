@@ -18,6 +18,7 @@ export function BottomBar() {
   const redoCount = useEditor((s) => s.redoStack.length);
   const viewMode = useEditor((s) => s.viewMode);
   const setViewMode = useEditor((s) => s.setViewMode);
+  const startTour = useEditor((s) => s.startTour);
   const activeFloorId = useEditor((s) => s.activeFloorId);
   const setActiveFloor = useEditor((s) => s.setActiveFloor);
   const showBefore = useEditor((s) => s.showBefore);
@@ -90,6 +91,13 @@ export function BottomBar() {
             Click to walk (Esc exits)
           </button>
         )}
+        <button
+          className={`rounded px-2.5 py-1.5 text-xs ${viewMode === 'tour' ? 'bg-accent/25 text-accent' : 'bg-accent/15 text-accent hover:bg-accent/25'}`}
+          onClick={startTour}
+          title="Guided walkthrough from the entrance through each room"
+        >
+          ▶ Tour
+        </button>
       </div>
 
       <div className="ml-auto flex items-center gap-1.5">

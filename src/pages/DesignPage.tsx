@@ -4,6 +4,7 @@ import { SceneCanvas } from '../components/canvas/SceneCanvas';
 import { Inspector } from '../components/inspector/Inspector';
 import { BottomBar } from '../components/panels/BottomBar';
 import { LeftPanel } from '../components/panels/LeftPanel';
+import { TourPanel } from '../components/panels/TourPanel';
 import { useEditor } from '../store/editor-store';
 import type { ProjectId } from '../api';
 
@@ -68,6 +69,7 @@ export function DesignPage() {
   const guidedEmpty = useEditor((s) => s.guidedEmpty);
   const scene = useEditor((s) => s.scene);
   const showBefore = useEditor((s) => s.showBefore);
+  const viewMode = useEditor((s) => s.viewMode);
 
   useEffect(() => {
     void loadProject(projectId);
@@ -98,11 +100,14 @@ export function DesignPage() {
             <LeftPanel />
             <main className="relative min-w-0 flex-1">
               <SceneCanvas />
+              {viewMode === 'tour' && <TourPanel />}
               <ErrorToast />
             </main>
-            <aside className="w-72 overflow-y-auto border-l border-panel-border bg-panel">
-              <Inspector />
-            </aside>
+            {viewMode !== 'tour' && (
+              <aside className="w-72 overflow-y-auto border-l border-panel-border bg-panel">
+                <Inspector />
+              </aside>
+            )}
           </>
         )}
       </div>

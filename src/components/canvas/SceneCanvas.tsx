@@ -13,9 +13,11 @@ import { Bloom, EffectComposer, N8AO, SMAA, Vignette } from '@react-three/postpr
 import { useQuery } from '@tanstack/react-query';
 import { floorElevation } from '@lib/scene/selectors';
 import type { HomeScene } from '@lib/scene/schemas';
+import { computeTourStops } from '@lib/tour';
 import { fetchAssetManifest, assetUrl } from '../../api';
 import { useEditor } from '../../store/editor-store';
 import { FloorContent } from './FloorContent';
+import { TourController } from './TourController';
 import { useMaterialMap } from './materials';
 
 const MM = 0.001;
@@ -70,6 +72,7 @@ function CameraRig({ scene }: { scene: HomeScene }) {
     }
   }, [viewMode, camera, center, span]);
 
+  if (viewMode === 'tour') return null; // TourController owns the camera
   if (viewMode === 'top') {
     return <MapControls makeDefault target={center} enableRotate={false} />;
   }
@@ -87,6 +90,12 @@ export function SceneCanvas() {
 
   const assetManifest = assets ?? { schemaVersion: 1 as const, downloadedAt: '', hdris: {}, textures: {} };
   const materials = useMaterialMap(scene, assetManifest);
+
+  const viewMode = useEditor((s) => s.viewMode);
+  const tourStops = useMemo(
+    () => (scene && activeFloorId ? computeTourStops(scene, activeFloorId) : []),
+    [scene, activeFloorId],
+  );
 
   if (!scene) return null;
   const floors = scene.floors.filter((f) => f.id === activeFloorId);
@@ -119,6 +128,7 @@ export function SceneCanvas() {
         ))}
         <ContactShadows position={[5.4, 0.005, -4.2]} scale={18} opacity={0.35} blur={2.2} far={3} />
         <CameraRig scene={scene} />
+        {viewMode === 'tour' && tourStops.length > 0 && <TourController stops={tourStops} />}
         <EffectComposer multisampling={0}>
           <N8AO halfRes aoRadius={0.9} intensity={2.4} distanceFalloff={0.6} />
           <SMAA />

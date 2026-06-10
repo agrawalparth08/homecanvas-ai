@@ -29,10 +29,21 @@ const ALLOWED_ORIGINS = new Set([
   'http://localhost:5173',
   'http://127.0.0.1:5173',
 ]);
+// DNS-rebinding defense: after a rebind the browser still sends the attacker's
+// hostname in Host, so a strict Host allow-list rejects it even on a no-Origin
+// GET (which is how same-origin reads evade the Origin check).
+const ALLOWED_HOSTS = new Set([
+  `127.0.0.1:${PORT}`,
+  `localhost:${PORT}`,
+]);
 
 const app = new Hono();
 
 app.use('*', async (c, next) => {
+  const host = c.req.header('host');
+  if (!host || !ALLOWED_HOSTS.has(host)) {
+    return c.json({ error: 'forbidden host' }, 403);
+  }
   const origin = c.req.header('origin');
   // Same-origin requests proxied by Vite carry no Origin header — allow those;
   // anything cross-origin must be the dev SPA itself.

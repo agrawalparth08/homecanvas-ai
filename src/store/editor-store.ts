@@ -46,12 +46,25 @@ interface EditorState {
 }
 
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
+// The pending write's (project, scene) so a context switch can flush it.
+let pendingPersist: { projectId: ProjectId; scene: HomeScene } | null = null;
 
 function schedulePersist(projectId: ProjectId, scene: HomeScene): void {
   if (persistTimer) clearTimeout(persistTimer);
+  pendingPersist = { projectId, scene };
   persistTimer = setTimeout(() => {
     void persistScene(projectId, scene);
+    persistTimer = null;
+    pendingPersist = null;
   }, 800);
+}
+
+/** Write any pending debounced edit immediately — call before switching project/variant. */
+function flushPersist(): void {
+  if (persistTimer) clearTimeout(persistTimer);
+  if (pendingPersist) void persistScene(pendingPersist.projectId, pendingPersist.scene);
+  persistTimer = null;
+  pendingPersist = null;
 }
 
 export const useEditor = create<EditorState>((set, get) => ({
@@ -70,6 +83,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   activeVariantId: null,
 
   loadProject: async (projectId) => {
+    flushPersist(); // never drop the previous project's last <800ms of edits
     set({ loading: true, projectId, selection: null, undoStack: [], redoStack: [], showBefore: false, activeVariantId: null });
     let scene = await fetchScene(projectId);
     let guidedEmpty = false;
@@ -177,6 +191,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
 
   loadVariant: async (variantId) => {
+    flushPersist();
     const { projectId } = get();
     const variant = await fetchVariant(projectId, variantId);
     if (!variant) return;

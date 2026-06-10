@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { readdir, stat } from 'node:fs/promises';
+import { lstat, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import {
   SCHEMA_VERSION,
@@ -83,9 +83,15 @@ async function walk(dir: string, root: string, out: string[]): Promise<void> {
   for (const entry of entries) {
     if (entry.startsWith('.')) continue;
     const full = path.join(dir, entry);
-    const info = await stat(full);
+    let info;
+    try {
+      info = await lstat(full); // lstat, not stat: never follow symlinks out of the private root
+    } catch {
+      continue; // dangling link / race — skip, never crash the scan
+    }
+    if (info.isSymbolicLink()) continue;
     if (info.isDirectory()) await walk(full, root, out);
-    else out.push(path.relative(root, full));
+    else if (info.isFile()) out.push(path.relative(root, full));
   }
 }
 
@@ -97,7 +103,12 @@ export async function detectPrivateHomeFiles(rootDir: string): Promise<PrivateHo
   const files: UploadedFile[] = [];
   for (const rel of relFiles.sort()) {
     const full = path.join(rootDir, rel);
-    const info = await stat(full);
+    let info;
+    try {
+      info = await stat(full);
+    } catch {
+      continue; // removed between walk and stat — skip rather than 500 the endpoint
+    }
     const ext = path.extname(rel).toLowerCase();
     files.push({
       id: rel.replace(/[^a-zA-Z0-9]+/g, '-'),

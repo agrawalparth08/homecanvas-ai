@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -61,5 +61,36 @@ describe('private home file detection', () => {
     await writeFile(path.join(root, 'raw/.DS_Store'), 'junk');
     const manifest = await detectPrivateHomeFiles(root);
     expect(manifest.files).toEqual([]);
+  });
+
+  it('does not follow symlinks out of the private root', async () => {
+    const outside = await mkdtemp(path.join(tmpdir(), 'homecanvas-outside-'));
+    await writeFile(path.join(outside, 'secret.txt'), 'private');
+    await mkdir(path.join(root, 'raw'), { recursive: true });
+    await writeFile(path.join(root, 'raw/plan.png'), 'png');
+    try {
+      await symlink(outside, path.join(root, 'raw/escape'), 'dir');
+      await symlink(path.join(outside, 'secret.txt'), path.join(root, 'raw/leak.txt'));
+    } catch {
+      return; // symlink unsupported (e.g. restricted CI) — nothing to assert
+    }
+    const manifest = await detectPrivateHomeFiles(root);
+    const names = manifest.files.map((f) => f.fileName);
+    expect(names).toContain('plan.png');
+    expect(names).not.toContain('secret.txt');
+    expect(names).not.toContain('leak.txt');
+    await rm(outside, { recursive: true, force: true });
+  });
+
+  it('does not crash on a dangling symlink', async () => {
+    await mkdir(path.join(root, 'raw'), { recursive: true });
+    await writeFile(path.join(root, 'raw/plan.png'), 'png');
+    try {
+      await symlink(path.join(root, 'raw/nonexistent-target'), path.join(root, 'raw/broken'));
+    } catch {
+      return;
+    }
+    const manifest = await detectPrivateHomeFiles(root);
+    expect(manifest.files.map((f) => f.fileName)).toContain('plan.png');
   });
 });

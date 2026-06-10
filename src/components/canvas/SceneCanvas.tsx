@@ -39,7 +39,7 @@ function CameraRig({ scene }: { scene: HomeScene }) {
   const viewMode = useEditor((s) => s.viewMode);
   const camera = useThree((s) => s.camera);
 
-  const center = useMemo(() => {
+  const { center, span } = useMemo(() => {
     let maxX = 0;
     let maxY = 0;
     for (const floor of scene.floors) {
@@ -50,20 +50,25 @@ function CameraRig({ scene }: { scene: HomeScene }) {
         }
       }
     }
-    return new THREE.Vector3((maxX / 2) * MM, 0, (-maxY / 2) * MM);
+    return {
+      center: new THREE.Vector3((maxX / 2) * MM, 0, (-maxY / 2) * MM),
+      span: Math.max(maxX, maxY) * MM,
+    };
   }, [scene]);
 
   useEffect(() => {
+    // Frame by scene size so larger homes don't clip the camera into a wall.
+    const d = Math.max(8, span);
     if (viewMode === 'top') {
-      camera.position.set(center.x, 22, center.z + 0.01);
+      camera.position.set(center.x, d * 1.4, center.z + 0.01);
       camera.lookAt(center);
     } else if (viewMode === 'orbit') {
-      camera.position.set(center.x + 9, 8, center.z + 9);
+      camera.position.set(center.x + d * 0.75, d * 0.7, center.z + d * 0.75);
       camera.lookAt(center);
     } else {
       camera.position.set(center.x, 1.6, center.z);
     }
-  }, [viewMode, camera, center]);
+  }, [viewMode, camera, center, span]);
 
   if (viewMode === 'top') {
     return <MapControls makeDefault target={center} enableRotate={false} />;
@@ -71,7 +76,7 @@ function CameraRig({ scene }: { scene: HomeScene }) {
   if (viewMode === 'walk') {
     return <PointerLockControls makeDefault selector="#walk-start" />;
   }
-  return <OrbitControls makeDefault target={center} maxPolarAngle={Math.PI / 2 - 0.02} minDistance={1.5} maxDistance={40} />;
+  return <OrbitControls makeDefault target={center} maxPolarAngle={Math.PI / 2 - 0.02} minDistance={1.5} maxDistance={Math.max(40, span * 3)} />;
 }
 
 export function SceneCanvas() {

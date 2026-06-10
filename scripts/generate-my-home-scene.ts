@@ -249,8 +249,9 @@ const LOWER: RoomRect[] = [
   room('l-living', 'Living Area', 'living', r(7000, 0, 11000, 6000)),
   room('l-kitchen', 'Kitchen', 'kitchen', r(0, 4200, 4000, 8200)),
   room('l-passage', 'Passage', 'passage', r(4000, 3000, 7000, 15000)),
-  room('l-stairs', 'Staircase', 'passage', r(7000, 6000, 9500, 9500)),
-  room('l-store', 'Store Room', 'store', r(9500, 6000, 11000, 9500)),
+  // Staircase center-left to match the plan and line up with the upper floor.
+  room('l-stairs', 'Staircase', 'passage', r(2200, 8500, 4000, 11000)),
+  room('l-store', 'Store Room', 'store', r(0, 8500, 2200, 11000)),
   room('l-bed1', 'Bedroom 1', 'bedroom', r(0, 13000, 4000, 17000)),
   room('l-bath1', 'Bathroom 1', 'bathroom', r(4000, 15000, 5500, 17000)),
   room('l-bed2', 'Bedroom 2', 'bedroom', r(7000, 13000, 11000, 17000)),
@@ -295,8 +296,8 @@ const LOWER_STAIR: Stair = {
   id: 'stair-main',
   floorId: 'floor-lower',
   kind: 'L',
-  position: { x: 7300, y: 6300 },
-  rotation: Math.PI / 2,
+  position: { x: 2350, y: 8650 },
+  rotation: Math.PI / 2, // ascend north, into the upper-floor passage
   width: 1200,
   totalRise: FLOOR_H,
   treadRun: 280,
@@ -308,46 +309,53 @@ const LOWER_STAIR: Stair = {
 };
 
 // ---------------------------------------------------------------------------
-// UPPER FLOOR — cleaner approximation (refine in wizard)
+// UPPER FLOOR — traced to the owner-described walk (north = back, up).
+//   stairs → passage → back-left terrace → master bedroom → its bath
+//   → (back to passage) lounge → small terrace behind the stairs
+//   → home office → office terrace → (back to lounge) front terrace
+//     overlooking the terrace below.
+// Staircase shares the lower floor's footprint so the floors line up.
+// East strip (x 8000..11000, y < 12500) is the double-height cut-out (no room).
 // ---------------------------------------------------------------------------
 
 const UPPER: RoomRect[] = [
-  room('u-stairs', 'Staircase', 'passage', r(7000, 6000, 9500, 9500)),
-  room('u-passage', 'Passage', 'passage', r(4500, 5500, 7000, 15000)),
-  room('u-lounge', 'Lounge', 'living', r(0, 5500, 4500, 11000)),
-  room('u-office', 'Bedroom / Office', 'study', r(4500, 0, 8000, 5500)),
-  room('u-terrace1', 'Terrace 1', 'terrace', r(0, 0, 4500, 5500), 'mat-floor-kota'),
-  room('u-terrace2', 'Terrace 2', 'terrace', r(8000, 0, 11000, 5500)),
-  room('u-master', 'Master Bedroom', 'masterBedroom', r(7000, 9500, 11000, 15000)),
-  room('u-masterbath', 'Master Bath', 'bathroom', r(9000, 15000, 11000, 17000)),
-  room('u-bed', 'Bedroom', 'bedroom', r(0, 11000, 4500, 17000)),
+  room('u-stairs', 'Staircase', 'passage', r(2200, 8500, 4000, 11000)),
+  room('u-passage', 'Passage', 'passage', r(0, 11000, 6500, 12500)),
+  room('u-terrace-back', 'Terrace (Back-Left)', 'terrace', r(0, 12500, 4800, 17000), 'mat-floor-kota'),
+  room('u-master', 'Master Bedroom', 'masterBedroom', r(4800, 12500, 8500, 17000)),
+  room('u-masterbath', 'Master Bathroom', 'bathroom', r(8500, 12500, 11000, 17000)),
+  room('u-lounge', 'Lounge', 'living', r(0, 5500, 4800, 8500)),
+  room('u-terrace-small', 'Terrace (Behind Stairs)', 'terrace', r(0, 8500, 2200, 11000), 'mat-floor-terracotta'),
+  room('u-office', 'Home Office', 'study', r(4800, 5500, 8000, 8500)),
+  room('u-terrace-office', 'Office Terrace', 'terrace', r(4800, 0, 8000, 5500), 'mat-floor-kota'),
+  room('u-terrace-front', 'Front Terrace (Over Below)', 'terrace', r(0, 0, 4800, 5500), 'mat-floor-terracotta'),
 ];
 
 const UPPER_DOORS: DoorSpec[] = [
   { a: 'u-stairs', b: 'u-passage' },
-  { a: 'u-passage', b: 'u-lounge' },
-  { a: 'u-passage', b: 'u-office' },
-  { a: 'u-lounge', b: 'u-terrace1' },
-  { a: 'u-office', b: 'u-terrace2' },
+  { a: 'u-passage', b: 'u-terrace-back' },
   { a: 'u-passage', b: 'u-master' },
+  { a: 'u-terrace-back', b: 'u-master' }, // bedroom opens onto the back terrace
   { a: 'u-master', b: 'u-masterbath' },
-  { a: 'u-passage', b: 'u-bed' },
+  { a: 'u-stairs', b: 'u-lounge' }, // back down to the lounge hub
+  { a: 'u-lounge', b: 'u-terrace-small' },
+  { a: 'u-lounge', b: 'u-office' },
+  { a: 'u-office', b: 'u-terrace-office' },
+  { a: 'u-lounge', b: 'u-terrace-front' },
 ];
 
 const UPPER_WINDOWS: WinSpec[] = [
-  { room: 'u-master', side: 'e' },
   { room: 'u-master', side: 'n' },
-  { room: 'u-bed', side: 'w' },
-  { room: 'u-bed', side: 'n' },
-  { room: 'u-office', side: 'n' },
+  { room: 'u-masterbath', side: 'e' },
+  { room: 'u-masterbath', side: 'n' },
   { room: 'u-lounge', side: 'w' },
 ];
 
 const UPPER_FURN: FurnSpec[] = [
   { id: 'u-f-lsofa', roomId: 'u-lounge', category: 'sofa', name: 'Lounge Sofa', kind: 'sofa', w: 2300, d: 950, h: 850, rot: 0, mats: ['mat-fabric-linen', 'mat-wood-teak'] },
   { id: 'u-f-mbed', roomId: 'u-master', category: 'bed', name: 'King Bed', kind: 'bed', w: 1900, d: 2150, h: 550, rot: 0, mats: ['mat-fabric-emerald', 'mat-wood-teak'] },
-  { id: 'u-f-bed', roomId: 'u-bed', category: 'bed', name: 'Queen Bed', kind: 'bed', w: 1600, d: 2050, h: 550, rot: 0, mats: ['mat-fabric-linen', 'mat-wood-teak'] },
   { id: 'u-f-desk', roomId: 'u-office', category: 'console', name: 'Desk', kind: 'table', w: 1600, d: 700, h: 750, rot: 0, mats: ['mat-wood-teak'] },
+  { id: 'u-f-plant', roomId: 'u-terrace-front', category: 'plant', name: 'Planter', kind: 'plant', w: 600, d: 600, h: 1400, rot: 0, mats: ['mat-paint-terracotta'] },
 ];
 
 async function main(): Promise<void> {

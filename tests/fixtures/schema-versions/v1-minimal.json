@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "id": "fixture-v1-minimal",
+  "name": "Frozen v1 fixture — one-room studio",
+  "units": "mm",
+  "floors": [
+    {
+      "id": "floor-0",
+      "name": "Ground",
+      "level": 0,
+      "floorHeight": 3000,
+      "rooms": [
+        {
+          "id": "room-studio",
+          "floorId": "floor-0",
+          "name": "Studio",
+          "kind": "living",
+          "openToSky": false,
+          "boundary": {
+            "outer": [
+              { "x": 0, "y": 0 },
+              { "x": 4000, "y": 0 },
+              { "x": 4000, "y": 3000 },
+              { "x": 0, "y": 3000 }
+            ],
+            "holes": []
+          },
+          "wallIds": ["w-s", "w-e", "w-n", "w-w"],
+          "floorSurface": { "id": "room-studio-floor", "parentId": "room-studio", "kind": "floor", "materialId": "mat-floor" },
+          "ceilingSurface": { "id": "room-studio-ceiling", "parentId": "room-studio", "kind": "ceiling", "materialId": "mat-wall" },
+          "furnitureIds": [],
+          "lightIds": [],
+          "styleTags": [],
+          "source": { "kind": "manual", "confidence": 1 }
+        }
+      ],
+      "walls": [
+        { "id": "w-s", "floorId": "floor-0", "path": { "pts": [{ "x": 0, "y": 0 }, { "x": 4000, "y": 0 }], "bulges": [0] }, "thickness": 230, "height": 3000, "materialIds": { "sideA": "mat-wall", "sideB": "mat-wall" }, "source": { "kind": "manual", "confidence": 1 } },
+        { "id": "w-e", "floorId": "floor-0", "path": { "pts": [{ "x": 4000, "y": 0 }, { "x": 4000, "y": 3000 }], "bulges": [0] }, "thickness": 230, "height": 3000, "materialIds": { "sideA": "mat-wall", "sideB": "mat-wall" }, "source": { "kind": "manual", "confidence": 1 } },
+        { "id": "w-n", "floorId": "floor-0", "path": { "pts": [{ "x": 4000, "y": 3000 }, { "x": 0, "y": 3000 }], "bulges": [0] }, "thickness": 230, "height": 3000, "materialIds": { "sideA": "mat-wall", "sideB": "mat-wall" }, "source": { "kind": "manual", "confidence": 1 } },
+        { "id": "w-w", "floorId": "floor-0", "path": { "pts": [{ "x": 0, "y": 3000 }, { "x": 0, "y": 0 }], "bulges": [0] }, "thickness": 230, "height": 3000, "materialIds": { "sideA": "mat-wall", "sideB": "mat-wall" }, "source": { "kind": "manual", "confidence": 1 } }
+      ],
+      "openings": [
+        { "id": "o-door", "wallId": "w-s", "kind": "door", "u": 0.5, "width": 900, "sillHeight": 0, "headHeight": 2100, "source": { "kind": "manual", "confidence": 1 } }
+      ],
+      "objects": [],
+      "stairs": [],
+      "lights": []
+    }
+  ],
+  "materials": [
+    { "id": "mat-wall", "name": "White", "category": "paint", "baseColor": "#f4efe6", "pbr": { "roughness": 0.94, "metallic": 0, "repeatScale": 1000 }, "styleTags": [] },
+    { "id": "mat-floor", "name": "Oak", "category": "wood", "baseColor": "#b08a5e", "pbr": { "roughness": 0.55, "metallic": 0, "repeatScale": 1400 }, "styleTags": [] }
+  ],
+  "locks": [],
+  "referenceImages": [],
+  "meta": { "createdAt": "2026-06-10T00:00:00.000Z", "updatedAt": "2026-06-10T00:00:00.000Z" }
+}

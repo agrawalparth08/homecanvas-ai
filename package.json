@@ -1,0 +1,55 @@
+{
+  "name": "homecanvas-ai",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "concurrently -n web,api -c blue,green \"vite\" \"tsx watch server/index.ts\"",
+    "dev:web": "vite",
+    "dev:api": "tsx watch server/index.ts",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "init:private": "tsx scripts/init-private-folders.ts",
+    "detect:private": "tsx scripts/detect-private-home-files.ts",
+    "fetch:assets": "tsx scripts/fetch-assets.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.0.4",
+    "@react-three/drei": "10.7.7",
+    "@react-three/fiber": "9.6.1",
+    "@react-three/postprocessing": "3.0.4",
+    "@tanstack/react-query": "5.101.0",
+    "hono": "4.12.25",
+    "immer": "11.1.8",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "react-router": "^7.6.0",
+    "three": "0.184.0",
+    "zod": "4.4.3",
+    "zustand": "5.0.14"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.3.0",
+    "@types/node": "^22.15.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@types/three": "0.184.0",
+    "@vitejs/plugin-react": "6.0.2",
+    "@vitest/coverage-v8": "4.1.8",
+    "concurrently": "10.0.3",
+    "eslint": "^9.28.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "tailwindcss": "4.3.0",
+    "tsx": "4.22.4",
+    "typescript": "~5.8.0",
+    "typescript-eslint": "^8.33.0",
+    "vite": "8.0.16",
+    "vitest": "4.1.8"
+  }
+}

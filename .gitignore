@@ -1,0 +1,18 @@
+# --- privacy: personal home data never enters git ---
+/private-home-inputs/
+
+# --- local CC0 asset cache (downloaded by scripts/fetch-assets.ts) ---
+/asset-cache/
+
+# --- local app data (scenes, variants, job records written by the sidecar) ---
+/.homecanvas/
+
+node_modules/
+dist/
+coverage/
+*.local
+.env
+.env.*
+.DS_Store
+*.log
+.gstack/

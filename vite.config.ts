@@ -10,6 +10,9 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
       '@lib': fileURLToPath(new URL('./lib', import.meta.url)),
     },
+    // Single copy of three + three-mesh-bvh — three-gpu-pathtracer's BVH
+    // instanceof checks fail if vite hoists a second mesh-bvh under it.
+    dedupe: ['three', 'three-mesh-bvh'],
   },
   server: {
     port: 5173,

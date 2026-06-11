@@ -21,9 +21,22 @@ function packMaterialId(packId: string, slot: string): string {
   return `mat-pack-${packId}-${slot}`;
 }
 
-function materialOps(scene: HomeScene, pack: StylePack): { ops: PatchOp[]; ids: Record<string, string> } {
+type OverrideIds = Record<string, { floor?: string; wall?: string }>;
+
+function materialOps(
+  scene: HomeScene,
+  pack: StylePack,
+): { ops: PatchOp[]; ids: Record<string, string>; overrideIds: OverrideIds } {
   const ops: PatchOp[] = [];
   const ids: Record<string, string> = {};
+  const have = new Set(scene.materials.map((m) => m.id));
+  const addMaterial = (id: string, spec: MaterialSpec) => {
+    if (have.has(id)) return;
+    have.add(id);
+    const material: Material = { ...spec, id, sourceReference: `stylepack:${pack.id}` };
+    ops.push({ type: 'add_material', material });
+  };
+
   const slots: [string, MaterialSpec | undefined][] = [
     ['wall', pack.wallPaint],
     ['accent', pack.accentWall],
@@ -35,12 +48,25 @@ function materialOps(scene: HomeScene, pack: StylePack): { ops: PatchOp[]; ids: 
     if (!spec) continue;
     const id = packMaterialId(pack.id, slot);
     ids[slot] = id;
-    if (!scene.materials.some((m) => m.id === id)) {
-      const material: Material = { ...spec, id, sourceReference: `stylepack:${pack.id}` };
-      ops.push({ type: 'add_material', material });
+    addMaterial(id, spec);
+  }
+
+  // Per-room-kind overrides get their own materials so the schema's
+  // roomOverrides.{floorMaterial,wallPaint} contract is actually honored.
+  const overrideIds: OverrideIds = {};
+  for (const [kind, ov] of Object.entries(pack.roomOverrides ?? {})) {
+    if (ov?.floorMaterial) {
+      const id = packMaterialId(pack.id, `${kind}-floor`);
+      overrideIds[kind] = { ...overrideIds[kind], floor: id };
+      addMaterial(id, ov.floorMaterial);
+    }
+    if (ov?.wallPaint) {
+      const id = packMaterialId(pack.id, `${kind}-wall`);
+      overrideIds[kind] = { ...overrideIds[kind], wall: id };
+      addMaterial(id, ov.wallPaint);
     }
   }
-  return { ops, ids };
+  return { ops, ids, overrideIds };
 }
 
 /**
@@ -73,7 +99,7 @@ export function buildStylePackApplication(
 ): StyleApplication {
   const locked = lockedEntityIds(scene);
   const skipped: string[] = [];
-  const { ops, ids } = materialOps(scene, pack);
+  const { ops, ids, overrideIds } = materialOps(scene, pack);
 
   const allRooms = scene.floors.flatMap((f) => f.rooms);
   const rooms =
@@ -86,11 +112,11 @@ export function buildStylePackApplication(
       continue;
     }
 
-    const override = pack.roomOverrides?.[room.kind];
+    const ovIds = overrideIds[room.kind];
 
-    // floor
-    const wantsWet = WET_KINDS.has(room.kind) && (ids['wetfloor'] || override?.floorMaterial);
-    const floorMatId = wantsWet && ids['wetfloor'] ? ids['wetfloor'] : ids['floor'];
+    // floor: a room-kind floor override wins; else wet rooms take the wet floor.
+    const wantsWet = WET_KINDS.has(room.kind) && ids['wetfloor'];
+    const floorMatId = ovIds?.floor ?? (wantsWet ? ids['wetfloor'] : ids['floor']);
     if (floorMatId) {
       ops.push({
         type: 'assign_material_to_surface',
@@ -113,7 +139,7 @@ export function buildStylePackApplication(
       ops.push({
         type: 'assign_material_to_surface',
         surface: { kind: 'wallSide', wallId, side },
-        materialId: useAccent ? ids['accent']! : ids['wall']!,
+        materialId: useAccent ? ids['accent']! : (ovIds?.wall ?? ids['wall']!),
       });
       if (useAccent) {
         accentAssigned = true;

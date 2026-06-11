@@ -55,16 +55,16 @@ function StylePacksSection() {
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">Style packs</h3>
       <div className="flex flex-col gap-2">
         {STYLE_PACKS.map((pack) => (
-          <div key={pack.id} className="rounded-lg border border-panel-border bg-neutral-900/60 p-2">
+          <div key={pack.id} className="hc-card-glow rounded-lg border border-panel-border bg-neutral-900/60 p-2">
             <div className="flex items-center justify-between">
               <span className="text-sm text-neutral-200">{pack.name}</span>
               <span className="text-[10px] uppercase text-neutral-500">{pack.budgetTier}</span>
             </div>
-            <div className="mt-1.5 flex gap-1">
-              {pack.palette.slice(0, 5).map((color) => (
-                <span key={color} className="h-3 w-3 rounded-full border border-black/40" style={{ background: color }} />
-              ))}
-            </div>
+            <div
+              className="mt-1.5 h-2.5 w-full rounded-full ring-1 ring-black/10"
+              title={pack.palette.slice(0, 5).join(' · ')}
+              style={{ background: `linear-gradient(90deg, ${pack.palette.slice(0, 5).join(', ')})` }}
+            />
             <div className="mt-2 flex gap-1.5">
               <button
                 disabled={!selectedRoom}

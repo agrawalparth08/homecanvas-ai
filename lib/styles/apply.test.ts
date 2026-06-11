@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { buildSampleHome } from '../fixtures/sample-home';
-import { findRoom, findWall } from '../scene/selectors';
-import { wallSideFacingRoom } from './apply';
+import { commit } from '../scene/commit';
+import { findMaterial, findRoom, findWall } from '../scene/selectors';
+import { buildStylePackApplication, wallSideFacingRoom } from './apply';
+import { getStylePack } from './style-packs';
 
 describe('wallSideFacingRoom', () => {
   const scene = buildSampleHome();
@@ -34,5 +36,34 @@ describe('wallSideFacingRoom', () => {
         }
       }
     }
+  });
+});
+
+describe('buildStylePackApplication roomOverrides', () => {
+  it('applies a per-room-kind floor override that differs from the wet floor', () => {
+    const base = getStylePack('indian-modern');
+    const pack = {
+      ...base,
+      id: 'test-override',
+      name: 'Test Override',
+      roomOverrides: {
+        kitchen: {
+          floorMaterial: {
+            name: 'Test Override Floor',
+            category: 'ceramicTile' as const,
+            baseColor: '#123456',
+            pbr: { roughness: 0.5, metallic: 0, repeatScale: 500 },
+            styleTags: ['test-override'],
+          },
+        },
+      },
+    };
+    const s = buildSampleHome();
+    const app = buildStylePackApplication(s, pack, 'wholeHome');
+    const result = commit(s, app.patch!);
+    if (!result.ok) throw new Error(JSON.stringify(result.errors));
+    const kitchen = findRoom(result.scene, 'room-kitchen')!.room;
+    // the override material (NOT the pack's generic wet floor) reaches the kitchen
+    expect(findMaterial(result.scene, kitchen.floorSurface.materialId)!.name).toBe('Test Override Floor');
   });
 });

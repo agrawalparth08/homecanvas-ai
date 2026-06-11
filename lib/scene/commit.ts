@@ -509,6 +509,13 @@ function applyOp(draft: HomeScene, op: PatchOp): void {
       throw new OpError(`stair "${op.stairId}" not found`, op.stairId);
     }
 
+    case 'update_stair': {
+      const stair = eachFloor(draft, (f) => f.stairs.find((s) => s.id === op.stairId));
+      if (!stair) throw new OpError(`stair "${op.stairId}" not found`, op.stairId);
+      Object.assign(stair, op.patch);
+      return;
+    }
+
     case 'add_light': {
       const floor = floorOf(draft, op.floorId);
       if (floor.lights.some((l) => l.id === op.light.id)) {
@@ -598,6 +605,28 @@ function applyOp(draft: HomeScene, op: PatchOp): void {
       const idx = draft.referenceImages.findIndex((r) => r.id === op.imageId);
       if (idx < 0) throw new OpError(`reference image "${op.imageId}" not found`, op.imageId);
       draft.referenceImages.splice(idx, 1);
+      return;
+    }
+
+    case 'set_floor_underlay': {
+      floorOf(draft, op.floorId).underlay = op.underlay;
+      return;
+    }
+
+    case 'clear_floor_underlay': {
+      delete floorOf(draft, op.floorId).underlay;
+      return;
+    }
+
+    case 'set_floor_calibration': {
+      floorOf(draft, op.floorId).calibration = op.calibration;
+      return;
+    }
+
+    case 'set_underlay_opacity': {
+      const floor = floorOf(draft, op.floorId);
+      if (!floor.underlay) throw new OpError(`floor "${op.floorId}" has no underlay`, op.floorId);
+      floor.underlay.opacity = op.opacity;
       return;
     }
   }

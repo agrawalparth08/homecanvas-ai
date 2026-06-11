@@ -267,8 +267,10 @@ describe('style pack application', () => {
     if (!result.ok) throw new Error(JSON.stringify(result.errors));
     const kitchen = findRoom(result.scene, 'room-kitchen')!.room;
     const living = findRoom(result.scene, 'room-living')!.room;
-    expect(kitchen.floorSurface.materialId).toBe('mat-pack-indian-modern-wetfloor');
-    expect(living.floorSurface.materialId).toBe('mat-pack-indian-modern-floor');
+    // kitchen is wet: it gets the porcelain floor (here via the pack's kitchen
+    // roomOverride, which now actually applies); living keeps the marble.
+    expect(findMaterial(result.scene, kitchen.floorSurface.materialId)!.name).toBe('Grey Porcelain');
+    expect(findMaterial(result.scene, living.floorSurface.materialId)!.name).toBe('Ivory Marble');
   });
 
   it('onLocked=skip pre-filters locked rooms and reports them', () => {
@@ -302,5 +304,104 @@ describe('changedEntities', () => {
     const result = commit(s, app.patch!);
     if (!result.ok) throw new Error(JSON.stringify(result.errors));
     expect(hasErrors(validateScene(result.scene))).toBe(false);
+  });
+
+  it('adds and removes a reference image (chat-attached photo persistence)', () => {
+    const s = scene();
+    const room = s.floors[0]!.rooms[0]!;
+    const image = {
+      id: 'ref-1',
+      kind: 'palette' as const,
+      roomId: room.id,
+      filePath: 'raw/chat-ref-1.png',
+      extractedPalette: ['#aabbcc', '#112233'],
+    };
+    const added = commit(s, makePatch('add ref', [{ type: 'add_reference_image', image }]));
+    if (!added.ok) throw new Error(JSON.stringify(added.errors));
+    expect(added.scene.referenceImages.map((r) => r.id)).toContain('ref-1');
+    expect(hasErrors(validateScene(added.scene))).toBe(false);
+
+    const removed = commit(added.scene, makePatch('rm ref', [{ type: 'remove_reference_image', imageId: 'ref-1' }]));
+    if (!removed.ok) throw new Error(JSON.stringify(removed.errors));
+    expect(removed.scene.referenceImages.some((r) => r.id === 'ref-1')).toBe(false);
+  });
+});
+
+describe('update_stair', () => {
+  const stairOf = (s: HomeScene) => s.floors.flatMap((f) => f.stairs).find((st) => st.id === 'stair-main')!;
+
+  it('moves a stair (position)', () => {
+    const { scene: next } = mustCommit(
+      scene(),
+      makePatch('move stair', [{ type: 'update_stair', stairId: 'stair-main', patch: { position: { x: 1200, y: 800 } } }]),
+    );
+    expect(stairOf(next).position).toEqual({ x: 1200, y: 800 });
+    expect(hasErrors(validateScene(next))).toBe(false);
+  });
+
+  it('rotates a stair and keeps other fields', () => {
+    const before = stairOf(scene());
+    const { scene: next } = mustCommit(
+      scene(),
+      makePatch('rotate stair', [{ type: 'update_stair', stairId: 'stair-main', patch: { rotation: Math.PI } }]),
+    );
+    const after = stairOf(next);
+    expect(after.rotation).toBe(Math.PI);
+    expect(after.position).toEqual(before.position); // untouched fields preserved
+    expect(after.width).toBe(before.width);
+  });
+
+  it('changes turn direction and kind and step material', () => {
+    const { scene: next } = mustCommit(
+      scene(),
+      makePatch('reshape stair', [
+        { type: 'update_stair', stairId: 'stair-main', patch: { turn: 'left', kind: 'straight', materialId: 'mat-floor-walnut' } },
+      ]),
+    );
+    const after = stairOf(next);
+    expect(after.turn).toBe('left');
+    expect(after.kind).toBe('straight');
+    expect(after.materialId).toBe('mat-floor-walnut');
+    expect(hasErrors(validateScene(next))).toBe(false);
+  });
+
+  it('rejects an unknown stair id', () => {
+    const res = commit(scene(), makePatch('bad', [{ type: 'update_stair', stairId: 'nope', patch: { rotation: 1 } }]));
+    expect(res.ok).toBe(false);
+  });
+
+  it('undo restores the prior position', () => {
+    const s0 = scene();
+    const before = stairOf(s0).position;
+    const { scene: moved, entry } = mustCommit(
+      s0,
+      makePatch('move', [{ type: 'update_stair', stairId: 'stair-main', patch: { position: { x: 9999, y: 9999 } } }]),
+    );
+    expect(stairOf(moved).position).toEqual({ x: 9999, y: 9999 });
+    const undone = commitPatches(moved, entry.undo);
+    if (!undone.ok) throw new Error(JSON.stringify(undone.errors));
+    expect(stairOf(undone.scene).position).toEqual(before);
+  });
+});
+
+describe('rename_entity (rooms)', () => {
+  const roomName = (s: HomeScene, id: string) => s.floors.flatMap((f) => f.rooms).find((r) => r.id === id)!.name;
+
+  it('renames a room and survives validation + undo', () => {
+    const s0 = scene();
+    const before = roomName(s0, 'room-living');
+    const { scene: next, entry } = mustCommit(
+      s0,
+      makePatch('rename', [{ type: 'rename_entity', entityId: 'room-living', name: 'Great Room' }]),
+    );
+    expect(roomName(next, 'room-living')).toBe('Great Room');
+    expect(hasErrors(validateScene(next))).toBe(false);
+    const undone = commitPatches(next, entry.undo);
+    if (!undone.ok) throw new Error(JSON.stringify(undone.errors));
+    expect(roomName(undone.scene, 'room-living')).toBe(before);
+  });
+
+  it('rejects an unknown entity id', () => {
+    expect(commit(scene(), makePatch('bad', [{ type: 'rename_entity', entityId: 'nope', name: 'X' }])).ok).toBe(false);
   });
 });

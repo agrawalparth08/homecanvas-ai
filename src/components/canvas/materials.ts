@@ -45,7 +45,7 @@ function buildMaterial(def: Material, assets: AssetCacheManifest): THREE.MeshSta
     };
     if (set.maps.diffuse) {
       material.map = apply(loadTexture(set.maps.diffuse, true));
-      material.color.set('#ffffff');
+      material.color.set(def.pbr.tint ?? '#ffffff'); // tint multiplies the texture
     }
     if (set.maps.normal) {
       material.normalMap = apply(loadTexture(set.maps.normal, false));

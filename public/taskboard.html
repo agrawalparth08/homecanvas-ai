@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HomeCanvas AI — Task Board</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --panel2: #1d212a; --border: #2a2f3a;
+    --text: #e8ecf3; --muted: #8b93a3; --done: #43c463;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 20px 24px 12px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg); z-index: 5; }
+  .title { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  h1 { font-size: 18px; margin: 0; font-weight: 650; }
+  .live { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--done); box-shadow: 0 0 0 0 rgba(67,196,99,.6); animation: pulse 2s infinite; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(67,196,99,.5);} 70% { box-shadow: 0 0 0 7px rgba(67,196,99,0);} 100% { box-shadow: 0 0 0 0 rgba(67,196,99,0);} }
+  .overall { margin-top: 12px; }
+  .bar { height: 9px; background: var(--panel2); border-radius: 6px; overflow: hidden; }
+  .bar > span { display: block; height: 100%; background: linear-gradient(90deg,#43c463,#2bc4b8); }
+  .meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .phasechips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .chip { display: flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 12px; }
+  .chip .pid { font-weight: 700; }
+  .chip .mini { width: 56px; height: 6px; background: var(--panel2); border-radius: 4px; overflow: hidden; }
+  .chip .mini > span { display: block; height: 100%; }
+  .board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; padding: 20px 24px 60px; max-width: 1500px; }
+  @media (max-width: 900px) { .board { grid-template-columns: 1fr; } }
+  .col { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
+  .col h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; margin: 4px 6px 12px; display: flex; justify-content: space-between; color: var(--muted); }
+  .count { background: var(--panel2); border-radius: 20px; padding: 1px 9px; font-size: 12px; color: var(--text); }
+  .card { background: var(--panel2); border: 1px solid var(--border); border-left-width: 4px; border-radius: 8px; padding: 9px 11px; margin-bottom: 9px; }
+  .card .top { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+  .badge { font-size: 10px; font-weight: 800; letter-spacing: .03em; padding: 1px 6px; border-radius: 5px; color: #0f1115; }
+  .card .t { font-size: 13.5px; }
+  .card .note { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .empty { color: var(--muted); font-size: 12.5px; padding: 8px 6px; }
+  footer { text-align: center; color: var(--muted); font-size: 12px; padding-bottom: 30px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="title">
+    <h1 id="proj">HomeCanvas AI — Task Board</h1>
+    <span class="live"><span class="dot"></span><span id="liveTxt">updated 2026-06-11</span></span>
+  </div>
+  <div class="overall">
+    <div class="bar"><span id="ovbar" style="width:0%"></span></div>
+    <div class="meta"><span id="ovtxt">—</span><span>reload to refresh</span></div>
+  </div>
+  <div class="phasechips" id="chips"></div>
+</header>
+
+<div class="board">
+  <div class="col"><h2>To Do <span class="count" id="c-todo">0</span></h2><div id="todo"></div></div>
+  <div class="col"><h2>In Progress <span class="count" id="c-doing">0</span></h2><div id="doing"></div></div>
+  <div class="col"><h2>Done <span class="count" id="c-done">0</span></h2><div id="done"></div></div>
+</div>
+<footer>Self-contained board • data embedded below • kept current as the build progresses</footer>
+
+<script>
+// ── Task data (single source — edited as the build progresses) ──────────────
+const DATA = {
+  project: "HomeCanvas AI", updatedAt: "2026-06-11",
+  phases: [
+    { id: "P0", name: "Foundation & scaffold", color: "#8a94a6", tasks: [
+      { t: "Repo scaffold: Vite 8 + Hono sidecar, TS strict, Tailwind, Vitest", s: "done" },
+      { t: "Scene graph: zod schemas + migrations + validation", s: "done" },
+      { t: "Geometry core: wall-network, openings, rooms, stairs, scale", s: "done" },
+      { t: "Commit pipeline: patches, effect-set locks, undo/redo, variants", s: "done" },
+      { t: "Private fixture infra + sidecar (manifest, file routes)", s: "done" } ] },
+    { id: "P1", name: "Interactive 3D canvas", color: "#4f9bff", tasks: [
+      { t: "R3F renderer: IBL, soft shadows, N8AO, AgX tone mapping", s: "done" },
+      { t: "Material library + 5 style packs + CC0 asset fetcher", s: "done" },
+      { t: "Store, inspector, panels, pages; material swaps", s: "done" },
+      { t: "Sample home + my-home loader; README + green gate", s: "done" } ] },
+    { id: "P2", name: "Upload, verify & tracing wizard", color: "#2bc4b8", tasks: [
+      { t: "Client PDF rasterization (pdfjs)", s: "done" },
+      { t: "Per-floor underlay + calibration ops + sidecar routes", s: "done" },
+      { t: "Tracing helpers + wizard state machine", s: "done" },
+      { t: "Plan2D editor (SVG): calibrate / wall / room / door / window", s: "done" },
+      { t: "Live split 2D / 3D view", s: "done" },
+      { t: "Drag-edit: move walls & rooms, resize windows, move openings", s: "done" },
+      { t: "Save / load named versions", s: "done" },
+      { t: "Upload page (drag-drop → raw/, local-only)", s: "done" } ] },
+    { id: "MH", name: "My Home (your penthouse)", color: "#d8a25a", tasks: [
+      { t: "Trace lower floor from plan", s: "done" },
+      { t: "Trace upper floor + align both floors", s: "done" },
+      { t: "Watertight floors (no gaps)", s: "done" },
+      { t: "POV guided walkthrough tour", s: "done" },
+      { t: "Windows from orange marks (real sizes)", s: "done" },
+      { t: "Pillars from magenta marks", s: "done" },
+      { t: "Materials: grey marble floors, white walls, matt terrace", s: "done" } ] },
+    { id: "P3", name: "Local extraction", color: "#a06bff", tasks: [
+      { t: "Colour-vector feature extraction (walls / windows / pillars)", s: "done" },
+      { t: "Snap traced edges onto real walls", s: "done" },
+      { t: "Room detection from walls (detectRooms)", s: "done" },
+      { t: "Wall-healing: bridge door gaps, snap junctions", s: "done" },
+      { t: "DXF ingestion adapter", s: "done" },
+      { t: "Auto-trace orchestrator (DXF / clean walls → rooms)", s: "done" },
+      { t: "Confidence model + ghosted review queue", s: "done" },
+      { t: "OCR: room labels + feet-inches dimensions", s: "done" },
+      { t: "DWG→DXF converter detection (ODA / LibreDWG, per-OS)", s: "done" },
+      { t: "Sidecar extraction job records + heartbeat", s: "done" },
+      { t: "Wire auto-trace into the Upload flow (DXF)", s: "done" } ] },
+    { id: "P4", name: "Agentic editing", color: "#ff5ea8", tasks: [
+      { t: "Chat panel — docked in the right panel (Inspector | Assistant tabs)", s: "done" },
+      { t: "MockAgentProvider intent parser (colour / material / style / revert)", s: "done" },
+      { t: "AgentEditProposal preview + approve / reject → commit", s: "done" },
+      { t: "Variants intent (\"3 variants of the master bedroom\") + N options", s: "done" },
+      { t: "ClaudeCodeBridgeProvider (human-driven local exchange, off by default)", s: "done", note: "protocol + sidecar routes + bridge:pending CLI + engine toggle" } ] },
+    { id: "P5", name: "Furniture, references & Photo Mode", color: "#ff8f3c", tasks: [
+      { t: "Procedural furniture catalog (15 pieces) + collision-aware placement", s: "done" },
+      { t: "SAT / OBB collision + clearance zones (pure, tested)", s: "done" },
+      { t: "Agent \"add a sofa to the lounge\" intent → place_furniture", s: "done" },
+      { t: "Photo Mode: high-res Save-photo export (supersampled, post-FX baked in)", s: "done" },
+      { t: "12 style packs total (7 added: Kerala, Goan, Chettinad, Farmhouse, Scandi, MCM, Monochrome)", s: "done" },
+      { t: "Reference-image input in chat: attach photo → palette → recolour (offline) or → Claude bridge for perspective/placement; persisted as ReferenceImage (inspector + survives reload)", s: "done", note: "median-cut + CIELAB; drag-drop; saved as ReferenceImage, shown in Inspector with remove" },
+      { t: "CC0 glTF furniture fetch (9 Poly Haven models) + glTF render wiring (Suspense/error → procedural fallback)", s: "done", note: "fetched + validated on-machine; render path served end-to-end (GPU visual unverified headless)" },
+      { t: "Photoreal Photo Mode: three-gpu-pathtracer progressive render + orbit + save still ('Photoreal' button)", s: "done", note: "built + wired + gated; verify the live render on the M4 browser" } ] },
+    { id: "P6", name: "Production ingestion & correction", color: "#43c463", tasks: [
+      { t: "Re-extraction reconciliation: id-remap matcher (room-IoU + wall-overlap → RemapTable)", s: "done", note: "pure + tested" },
+      { t: "Apply-remap: lock-gated migration (preserve ids, surface added/unresolved, never silent replace)", s: "done", note: "pure + tested" },
+      { t: "Extraction review heuristics (coverage, suspicious dims, impossible placement)", s: "done", note: "pure + tested" },
+      { t: "GeometryCorrectionProposal flow (review → proposal → patch via commit)", s: "done", note: "MockProvider.proposeCorrections; lock-safe" },
+      { t: "Robust raster-CV extraction for scanned plans + CubiCasa5k booster + diff/merge UI", s: "todo", note: "research-grade; assisted wizard is the reliable path today" } ] },
+    { id: "P7", name: "Polish & export", color: "#ff5a5a", tasks: [
+      { t: "Scene JSON export (pure builder + /export endpoint + button, re-importable)", s: "done" },
+      { t: "Room-wise design boards (buildRoomBoards) + live Variants page (palette/materials/furniture)", s: "done" },
+      { t: "Variant side-by-side: scene diff summary (diffScenes) + recoloured-vs-baseline badges", s: "done" },
+      { t: "Before/After spatial slider: fixed-camera dual-render clip wipe + draggable handle", s: "done", note: "built; GPU visual unverified headless — verify on M4 browser" },
+      { t: "Path-traced Photo Mode (three-gpu-pathtracer + oidn) — needs live WebGL2 to build+verify", s: "todo", note: "interface ready; best built with the screen visible" },
+      { t: "Perf pass (instancing) + optional Blender Cycles adapter", s: "todo" } ] }
+  ]
+};
+
+const COLS = { todo: "todo", doing: "doing", done: "done" };
+const esc = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+function card(phase, task) {
+  return `<div class="card" style="border-left-color:${phase.color}">
+    <div class="top"><span class="badge" style="background:${phase.color}">${phase.id}</span></div>
+    <div class="t">${esc(task.t)}</div>
+    ${task.note ? `<div class="note">${esc(task.note)}</div>` : ""}
+  </div>`;
+}
+(function render() {
+  document.getElementById("proj").textContent = DATA.project + " — Task Board";
+  document.getElementById("liveTxt").textContent = "updated " + DATA.updatedAt;
+  const buckets = { todo: [], doing: [], done: [] };
+  let total = 0, done = 0;
+  const chips = [];
+  for (const ph of DATA.phases) {
+    let pdone = 0;
+    for (const tk of ph.tasks) {
+      buckets[COLS[tk.s] || "todo"].push(card(ph, tk));
+      total++; if (tk.s === "done") { done++; pdone++; }
+    }
+    const pct = Math.round((pdone / ph.tasks.length) * 100);
+    chips.push(`<div class="chip"><span class="pid" style="color:${ph.color}">${ph.id}</span>
+      <span>${esc(ph.name)}</span>
+      <span class="mini"><span style="width:${pct}%;background:${ph.color}"></span></span>
+      <span style="color:var(--muted)">${pdone}/${ph.tasks.length}</span></div>`);
+  }
+  document.getElementById("chips").innerHTML = chips.join("");
+  for (const k of ["todo", "doing", "done"]) {
+    document.getElementById(k).innerHTML = buckets[k].length ? buckets[k].join("") : '<div class="empty">— nothing here —</div>';
+    document.getElementById("c-" + k).textContent = buckets[k].length;
+  }
+  const pct = Math.round((done / total) * 100);
+  document.getElementById("ovbar").style.width = pct + "%";
+  document.getElementById("ovtxt").textContent = `${done} / ${total} tasks done · ${pct}%`;
+})();
+</script>
+</body>
+</html>

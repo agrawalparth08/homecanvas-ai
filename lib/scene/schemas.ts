@@ -79,6 +79,8 @@ export const MaterialSchema = z.object({
     /** Key into the local CC0 asset cache (lib/assets); absent => flat procedural. */
     textureSetRef: z.string().optional(),
     normalStrength: z.number().min(0).max(2).optional(),
+    /** Multiplies the diffuse texture (e.g. tint an ivory marble grey). Default white = texture as-is. */
+    tint: HexColor.optional(),
     /** Plan-mm covered by one texture repeat. */
     repeatScale: z.number().positive(),
   }),
@@ -333,7 +335,13 @@ export const FloorSchema = z.object({
     .optional(),
   /** 2D underlay shown in overlay/tracing modes (P2+). */
   underlay: z
-    .object({ filePath: z.string(), opacity: z.number().min(0).max(1) })
+    .object({
+      filePath: z.string(),
+      opacity: z.number().min(0).max(1),
+      widthPx: z.number().positive(),
+      heightPx: z.number().positive(),
+      page: z.number().int().positive().optional(),
+    })
     .optional(),
   rooms: z.array(RoomSchema),
   walls: z.array(WallSchema),
@@ -499,3 +507,81 @@ export const FloorPlanExtractionResultSchema = z.object({
   overallConfidence: z.number().min(0).max(1),
 });
 export type FloorPlanExtractionResult = z.infer<typeof FloorPlanExtractionResultSchema>;
+
+// ---------------------------------------------------------------------------
+// re-extraction reconciliation + extraction review (P6) — sibling artifacts,
+// not part of HomeScene, so no SCHEMA_VERSION bump / migration needed.
+// ---------------------------------------------------------------------------
+
+export const RemapStatus = z.enum(['kept', 'remapped', 'split', 'deleted', 'added', 'unresolved']);
+export type RemapStatus = z.infer<typeof RemapStatus>;
+
+export const RemapEntrySchema = z.object({
+  status: RemapStatus,
+  entityType: z.enum(['room', 'wall']),
+  /** Present except for 'added'. */
+  oldId: EntityId.optional(),
+  /** The matched new id for kept/remapped/added. */
+  newId: EntityId.optional(),
+  /** The new ids an old entity split into. */
+  newIds: z.array(EntityId).optional(),
+  /** Match score (IoU or overlap ratio) when applicable. */
+  score: z.number().optional(),
+});
+export type RemapEntry = z.infer<typeof RemapEntrySchema>;
+
+export const RemapTableSchema = z.object({ entries: z.array(RemapEntrySchema) });
+export type RemapTable = z.infer<typeof RemapTableSchema>;
+
+export const ExtractionReviewSchema = z.object({
+  issues: z.array(ConfidenceIssueSchema),
+  /** Fraction of the floor extent covered by room polygons, [0,1]. */
+  coverage: z.number().min(0).max(1),
+  summary: z.string(),
+});
+export type ExtractionReview = z.infer<typeof ExtractionReviewSchema>;
+
+// ---------------------------------------------------------------------------
+// geometry corrections (P6) — proposal → patch, previewed then committed
+// ---------------------------------------------------------------------------
+
+export const GeometryCorrectionKind = z.enum(['resizeWall', 'deleteWall']);
+export type GeometryCorrectionKind = z.infer<typeof GeometryCorrectionKind>;
+
+export const GeometryCorrectionProposalSchema = z.object({
+  id: z.string().min(1),
+  targetEntityId: EntityId,
+  kind: GeometryCorrectionKind,
+  params: z.object({ thickness: z.number().positive().optional() }),
+  rationale: z.string(),
+  confidence: z.number().min(0).max(1),
+});
+export type GeometryCorrectionProposal = z.infer<typeof GeometryCorrectionProposalSchema>;
+
+// ---------------------------------------------------------------------------
+// room boards + variant diff (P7) — pure descriptors over a scene
+// ---------------------------------------------------------------------------
+
+export const RoomBoardSchema = z.object({
+  roomId: EntityId,
+  name: z.string(),
+  kind: RoomKind,
+  palette: z.array(HexColor),
+  materials: z.array(z.object({ id: EntityId, name: z.string(), baseColor: HexColor })),
+  furniture: z.array(z.object({ id: EntityId, name: z.string(), category: FurnitureCategory })),
+  styleTags: z.array(z.string()),
+});
+export type RoomBoard = z.infer<typeof RoomBoardSchema>;
+
+export const SceneDiffSchema = z.object({
+  changedRooms: z.array(EntityId),
+  recoloredRooms: z.array(EntityId),
+  addedRoomIds: z.array(EntityId),
+  removedRoomIds: z.array(EntityId),
+  addedObjectIds: z.array(EntityId),
+  removedObjectIds: z.array(EntityId),
+  /** Objects present in both but whose transform changed (a layout edit). */
+  movedObjectIds: z.array(EntityId),
+  summary: z.string(),
+});
+export type SceneDiff = z.infer<typeof SceneDiffSchema>;

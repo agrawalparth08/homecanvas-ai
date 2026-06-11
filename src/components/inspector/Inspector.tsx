@@ -1,9 +1,150 @@
+import { useRef, useState } from 'react';
+import { designPackName, designRoomPatch } from '@lib/agent/autodesign';
+import { CATALOG, placeFurnitureInRoom, uniqueFurnitureId, type CatalogKey } from '@lib/furniture/catalog';
 import { polygonArea } from '@lib/geometry/rooms';
-import { makePatch } from '@lib/scene/patching';
-import type { HomeScene, Material } from '@lib/scene/schemas';
-import { findEntity, lockedEntityIds } from '@lib/scene/selectors';
+import { makePatch, type PatchOp } from '@lib/scene/patching';
+import type { FurnitureObject, HomeScene, Material, Room } from '@lib/scene/schemas';
+import { findEntity, findWall, lockedEntityIds } from '@lib/scene/selectors';
 import { mmToDisplay } from '@lib/geometry/scale';
+import { wallSideFacingRoom } from '@lib/styles/apply';
+import {
+  isStructuralColumn,
+  STRUCTURAL_DELETE_CONFIRM,
+  STRUCTURAL_DELETE_MESSAGE,
+  STRUCTURAL_DELETE_TITLE,
+} from '@lib/furniture/structural';
+import { privateFileUrl } from '../../api';
 import { useEditor } from '../../store/editor-store';
+import { reportError } from '../../store/error-store';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { RoomNameEditor } from './RoomNameEditor';
+import { StairControls } from './StairControls';
+
+/** Room-only extras: wall material/colour, an furniture picker, and one-click auto-design. */
+function RoomExtras({ scene, room }: { scene: HomeScene; room: Room }) {
+  const applyPatch = useEditor((s) => s.applyPatch);
+  const [furnKey, setFurnKey] = useState<CatalogKey>('sofa');
+  const locked = lockedEntityIds(scene).has(room.id);
+
+  const setRoomWalls = (mk: (wallId: string, side: 'sideA' | 'sideB') => PatchOp) => {
+    const ops: PatchOp[] = [];
+    for (const wid of room.wallIds) {
+      const fw = findWall(scene, wid);
+      if (fw) ops.push(mk(wid, wallSideFacingRoom(fw.wall, room)));
+    }
+    if (ops.length) applyPatch(makePatch(`Walls of ${room.name}`, ops));
+  };
+
+  const firstWall = room.wallIds.map((w) => findWall(scene, w)).find(Boolean);
+  const wallValue = firstWall
+    ? firstWall.wall.materialIds[wallSideFacingRoom(firstWall.wall, room)]
+    : (scene.materials[0]?.id ?? '');
+
+  const addFurniture = () => {
+    const floor = scene.floors.find((f) => f.rooms.some((r) => r.id === room.id));
+    if (!floor) return;
+    const existing = floor.objects.filter((o) => o.roomId === room.id);
+    const obj = placeFurnitureInRoom({
+      id: uniqueFurnitureId(new Set(floor.objects.map((o) => o.id)), room.id),
+      roomId: room.id,
+      key: furnKey,
+      roomOuter: room.boundary.outer,
+      existing,
+    });
+    if (obj) applyPatch(makePatch(`Add ${CATALOG[furnKey].name}`, [{ type: 'place_furniture', object: obj }]));
+  };
+
+  const autoDesign = () => {
+    const patch = designRoomPatch(scene, room);
+    if (patch) applyPatch(patch);
+  };
+
+  return (
+    <>
+      <MaterialSelect
+        scene={scene}
+        label="Wall material (whole room)"
+        value={wallValue}
+        onChange={(materialId) =>
+          setRoomWalls((wallId, side) => ({ type: 'assign_material_to_surface', surface: { kind: 'wallSide', wallId, side }, materialId }))
+        }
+      />
+      <ColorRow
+        label="Quick wall color"
+        onPick={(color) => setRoomWalls((wallId, side) => ({ type: 'set_surface_color', surface: { kind: 'wallSide', wallId, side }, color }))}
+      />
+      <label className="block text-xs text-neutral-400">
+        Add furniture
+        <div className="mt-1 flex gap-1.5">
+          <select
+            value={furnKey}
+            onChange={(e) => setFurnKey(e.target.value as CatalogKey)}
+            className="min-w-0 flex-1 rounded border border-panel-border bg-neutral-900 px-2 py-1.5 text-sm text-neutral-100"
+          >
+            {Object.entries(CATALOG).map(([k, v]) => (
+              <option key={k} value={k}>
+                {v.name}
+              </option>
+            ))}
+          </select>
+          <button onClick={addFurniture} className="rounded bg-neutral-800 px-3 text-xs text-neutral-200 hover:bg-neutral-700">
+            Add
+          </button>
+        </div>
+      </label>
+      <button
+        onClick={autoDesign}
+        disabled={locked}
+        title={locked ? 'Unlock the room first' : `Apply ${designPackName(room)} + place furniture`}
+        className="w-full rounded-md bg-accent/15 px-2 py-2 text-xs font-medium text-accent enabled:hover:bg-accent/25 disabled:opacity-40"
+      >
+        ✨ Auto-design this room
+      </button>
+    </>
+  );
+}
+
+/**
+ * Reference images attached in the chat, persisted on the scene. Shows the
+ * thumbnail, kind, extracted palette and a remove button. When a room is
+ * selected, room-scoped references are shown alongside the global ones.
+ */
+function ReferencesSection({ scene, selectedRoomId }: { scene: HomeScene; selectedRoomId: string | undefined }) {
+  const applyPatch = useEditor((s) => s.applyPatch);
+  const refs = scene.referenceImages ?? [];
+  if (refs.length === 0) return null;
+  const shown = selectedRoomId ? refs.filter((r) => !r.roomId || r.roomId === selectedRoomId) : refs;
+  if (shown.length === 0) return null;
+  return (
+    <div className="border-t border-panel-border pt-3">
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">References</h3>
+      <div className="grid grid-cols-2 gap-2">
+        {shown.map((r) => (
+          <div key={r.id} className="rounded-lg border border-panel-border bg-neutral-900 p-1.5">
+            <img src={privateFileUrl(r.filePath)} alt={r.kind} className="h-16 w-full rounded object-cover" />
+            <div className="mt-1 flex items-center justify-between">
+              <span className="text-[10px] uppercase tracking-wide text-neutral-500">{r.kind}</span>
+              <button
+                onClick={() => applyPatch(makePatch('Remove reference', [{ type: 'remove_reference_image', imageId: r.id }]))}
+                className="text-neutral-500 hover:text-red-400"
+                title="Remove reference"
+              >
+                ✕
+              </button>
+            </div>
+            {r.extractedPalette && r.extractedPalette.length > 0 && (
+              <div className="mt-1 flex gap-0.5">
+                {r.extractedPalette.slice(0, 6).map((c, k) => (
+                  <span key={k} className="h-3 flex-1 rounded-sm" style={{ background: c }} title={c} />
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function MaterialSelect({
   scene,
@@ -77,6 +218,53 @@ function LockToggle({ scene, entityId }: { scene: HomeScene; entityId: string })
   );
 }
 
+/** "Remove from room" button. Structural pillars get a confirm step first. */
+function RemoveFurnitureButton({ object }: { object: FurnitureObject }) {
+  const scene = useEditor((s) => s.scene);
+  const applyPatch = useEditor((s) => s.applyPatch);
+  const [confirming, setConfirming] = useState(false);
+  const removingRef = useRef(false); // guard a same-tick double-fire of the confirm
+  const structural = isStructuralColumn(object);
+  const onClick = () => {
+    if (!structural) {
+      doRemove();
+      return;
+    }
+    // A locked pillar/room would have its remove_object rejected by the lock
+    // gate after the user confirms — surface that up front instead.
+    const locked = scene ? lockedEntityIds(scene) : new Set<string>();
+    if (locked.has(object.id) || locked.has(object.roomId)) {
+      reportError('This pillar (or its room) is locked — unlock it first to delete the pillar.', { kind: 'rejected' });
+      return;
+    }
+    setConfirming(true);
+  };
+  const doRemove = () => {
+    if (removingRef.current) return;
+    removingRef.current = true;
+    applyPatch(makePatch(`Remove ${object.name}`, [{ type: 'remove_object', objectId: object.id }]));
+    setConfirming(false);
+  };
+  return (
+    <>
+      <button
+        className="w-full rounded border border-red-900 bg-red-950 px-2 py-1.5 text-xs text-red-300 hover:border-red-700"
+        onClick={onClick}
+      >
+        {structural ? 'Remove pillar…' : 'Remove from room'}
+      </button>
+      <ConfirmDialog
+        open={confirming}
+        title={STRUCTURAL_DELETE_TITLE}
+        message={STRUCTURAL_DELETE_MESSAGE}
+        confirmLabel={STRUCTURAL_DELETE_CONFIRM}
+        onConfirm={doRemove}
+        onCancel={() => setConfirming(false)}
+      />
+    </>
+  );
+}
+
 export function Inspector() {
   const scene = useEditor((s) => s.scene);
   const selection = useEditor((s) => s.selection);
@@ -85,13 +273,21 @@ export function Inspector() {
   if (!scene) return null;
   if (!selection) {
     return (
-      <div className="p-4 text-sm text-neutral-500">
-        Click a room floor, wall, stair or furniture piece to inspect it.
+      <div className="flex flex-col gap-4 p-4">
+        <div className="text-sm text-neutral-500">Click a room floor, wall, stair or furniture piece to inspect it.</div>
+        <ReferencesSection scene={scene} selectedRoomId={undefined} />
       </div>
     );
   }
   const found = findEntity(scene, selection.id);
-  if (!found) return <div className="p-4 text-sm text-neutral-500">Selection no longer exists.</div>;
+  if (!found) {
+    return (
+      <div className="flex flex-col gap-4 p-4">
+        <div className="text-sm text-neutral-500">Selection no longer exists.</div>
+        <ReferencesSection scene={scene} selectedRoomId={undefined} />
+      </div>
+    );
+  }
 
   const header = (title: string, subtitle: string) => (
     <div>
@@ -105,6 +301,7 @@ export function Inspector() {
       {found.type === 'room' && (
         <>
           {header(found.entity.name, `${found.entity.kind} · ${(polygonArea(found.entity.boundary.outer) / 1e6).toFixed(1)} m²${found.entity.openToSky ? ' · open to sky' : ''}`)}
+          <RoomNameEditor room={found.entity} onPatch={(p) => applyPatch(p)} />
           <MaterialSelect
             scene={scene}
             label="Floor material"
@@ -144,6 +341,7 @@ export function Inspector() {
           {found.entity.styleTags.length > 0 && (
             <div className="text-xs text-neutral-500">Style: {found.entity.styleTags.join(', ')}</div>
           )}
+          <RoomExtras scene={scene} room={found.entity} />
           <LockToggle scene={scene} entityId={found.entity.id} />
         </>
       )}
@@ -215,12 +413,7 @@ export function Inspector() {
               }}
             />
           ))}
-          <button
-            className="w-full rounded border border-red-900 bg-red-950 px-2 py-1.5 text-xs text-red-300 hover:border-red-700"
-            onClick={() => applyPatch(makePatch(`Remove ${found.entity.name}`, [{ type: 'remove_object', objectId: found.entity.id }]))}
-          >
-            Remove from room
-          </button>
+          <RemoveFurnitureButton object={found.entity} />
           <LockToggle scene={scene} entityId={found.entity.id} />
         </>
       )}
@@ -228,14 +421,7 @@ export function Inspector() {
       {found.type === 'stair' && (
         <>
           {header('Staircase', `${found.entity.kind} · rises ${mmToDisplay(found.entity.totalRise, 'metric')}`)}
-          <MaterialSelect
-            scene={scene}
-            label="Step material"
-            value={found.entity.materialId}
-            onChange={() => {
-              /* stair material swap ships with update_stair op in P2 */
-            }}
-          />
+          <StairControls stair={found.entity} materials={scene.materials} onPatch={(p) => applyPatch(p)} />
           <LockToggle scene={scene} entityId={found.entity.id} />
         </>
       )}
@@ -243,6 +429,8 @@ export function Inspector() {
       {(found.type === 'opening' || found.type === 'light' || found.type === 'material') && (
         <div className="text-sm text-neutral-500">Editing for this entity type arrives in Phase 2.</div>
       )}
+
+      <ReferencesSection scene={scene} selectedRoomId={found.type === 'room' ? found.entity.id : undefined} />
     </div>
   );
 }

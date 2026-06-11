@@ -31,6 +31,8 @@ export function angleOf(a: Vec2): number {
   return Math.atan2(a.y, a.x);
 }
 
+export const clamp01 = (t: number): number => (t < 0 ? 0 : t > 1 ? 1 : t);
+
 /**
  * Intersection of two infinite lines given as point+direction.
  * Returns null when nearly parallel (|cross| below tolerance).

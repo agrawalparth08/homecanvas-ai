@@ -1,12 +1,15 @@
-import { useMemo } from 'react';
+import { Suspense, createContext, useContext, useMemo } from 'react';
 import * as THREE from 'three';
 import { Edges } from '@react-three/drei';
+import { useQuery } from '@tanstack/react-query';
 import { prismsToBuffers, wallSolidToBuffers } from '@lib/geometry/extrusion';
 import { buildStair } from '@lib/geometry/stairs';
 import { buildWallNetwork } from '@lib/geometry/walls';
 import type { Floor, FurnitureObject } from '@lib/scene/schemas';
+import { assetUrl, fetchAssetManifest } from '../../api';
 import { useEditor, type Selection } from '../../store/editor-store';
 import { bufferDataToGeometry, boundaryToFloorGeometry } from './geometry-helpers';
+import { GltfErrorBoundary, GltfFurniture } from './GltfFurniture';
 import { pick, TRIM_MATERIAL } from './materials';
 import { ProceduralFurniture } from './ProceduralFurniture';
 
@@ -19,14 +22,23 @@ interface FloorContentProps {
   materials: Map<string, THREE.MeshStandardMaterial>;
 }
 
+/**
+ * Optional override so the tracing 3D preview can route clicks to the wizard's
+ * LOCAL selection (highlighting the matching 2D wall/room) instead of the main
+ * editor store. When no provider is present, useSelect uses the store as usual.
+ */
+export const PickProvider = createContext<{ onPick: (id: string) => void; selectedId: string | null } | null>(null);
+
 function useSelect() {
+  const override = useContext(PickProvider);
   const select = useEditor((s) => s.select);
   const selection = useEditor((s) => s.selection);
   const onSelect = (sel: Selection) => (e: { stopPropagation: () => void }) => {
     e.stopPropagation();
-    select(sel);
+    if (override) override.onPick(sel.id);
+    else select(sel);
   };
-  const isSelected = (id: string) => selection?.id === id;
+  const isSelected = (id: string) => (override ? override.selectedId === id : selection?.id === id);
   return { onSelect, isSelected };
 }
 
@@ -85,8 +97,16 @@ function RoomSurfaces({ floor, materials }: { floor: Floor; materials: FloorCont
               receiveShadow
               onClick={onSelect({ type: 'room', id: room.id })}
             >
-              {isSelected(room.id) && <Edges scale={1.001} color={SELECT_COLOR} lineWidth={2} />}
+              {isSelected(room.id) && <Edges scale={1.001} color={SELECT_COLOR} lineWidth={3} />}
             </mesh>
+            {isSelected(room.id) && (
+              // Prominent glow over the selected room's floor — visible from
+              // orbit/top/inside, so clicking a room in the left list clearly
+              // points to it on the canvas.
+              <mesh geometry={geometry} position={[0, 0.03, 0]} renderOrder={10}>
+                <meshBasicMaterial color={SELECT_COLOR} transparent opacity={0.32} depthWrite={false} />
+              </mesh>
+            )}
             {showCeilings && room.ceilingSurface && !room.openToSky && (
               <mesh
                 geometry={geometry}
@@ -134,18 +154,36 @@ function StairMeshes({ floor, materials }: { floor: Floor; materials: FloorConte
 
 function FurnitureMeshes({ floor, materials }: { floor: Floor; materials: FloorContentProps['materials'] }) {
   const { onSelect, isSelected } = useSelect();
+  const { data: assets } = useQuery({ queryKey: ['asset-manifest'], queryFn: fetchAssetManifest, staleTime: Infinity });
+  const models = assets?.models ?? {};
   return (
     <>
-      {floor.objects.map((obj: FurnitureObject) => (
-        <group
-          key={obj.id}
-          position={[obj.transform.x * MM, obj.transform.elevation * MM, -obj.transform.y * MM]}
-          rotation={[0, obj.transform.rotationY, 0]}
-          onClick={onSelect({ type: 'furniture', id: obj.id })}
-        >
+      {floor.objects.map((obj: FurnitureObject) => {
+        const procedural = (
           <ProceduralFurniture object={obj} materials={materials} selected={isSelected(obj.id)} />
-        </group>
-      ))}
+        );
+        const model = obj.assetRef ? models[obj.assetRef] : undefined;
+        return (
+          <group
+            key={obj.id}
+            position={[obj.transform.x * MM, obj.transform.elevation * MM, -obj.transform.y * MM]}
+            rotation={[0, obj.transform.rotationY, 0]}
+            onClick={onSelect({ type: 'furniture', id: obj.id })}
+          >
+            {model ? (
+              // CC0 glTF if it's in the cache; both Suspense (loading) and the
+              // error boundary (parse/network failure) fall back to procedural.
+              <GltfErrorBoundary fallback={procedural}>
+                <Suspense fallback={procedural}>
+                  <GltfFurniture url={assetUrl(model.file)} object={obj} />
+                </Suspense>
+              </GltfErrorBoundary>
+            ) : (
+              procedural
+            )}
+          </group>
+        );
+      })}
     </>
   );
 }

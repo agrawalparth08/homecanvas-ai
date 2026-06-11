@@ -81,10 +81,72 @@ export async function fetchAssetManifest(): Promise<AssetCacheManifest> {
   try {
     return await json<AssetCacheManifest>(await fetch('/api/assets/manifest'));
   } catch {
-    return { schemaVersion: 1, downloadedAt: '', hdris: {}, textures: {} };
+    return { schemaVersion: 1, downloadedAt: '', hdris: {}, textures: {}, models: {} };
   }
 }
 
 export function assetUrl(relPath: string): string {
   return `/api/assets/file/${relPath.split(/[\\/]/).map(encodeURIComponent).join('/')}`;
+}
+
+export function privateFileUrl(relPath: string): string {
+  return `/api/private-home/file/${relPath.split(/[\\/]/).map(encodeURIComponent).join('/')}`;
+}
+
+/** Best-effort auto-trace of a CAD file (DXF). Returns room candidate count. */
+export async function autoTracePrivate(filePath: string): Promise<{ ok: boolean; count?: number; reason?: string }> {
+  try {
+    const res = await fetch('/api/private-home/auto-trace', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filePath }),
+    });
+    return (await res.json()) as { ok: boolean; count?: number; reason?: string };
+  } catch {
+    return { ok: false, reason: 'request failed' };
+  }
+}
+
+/** Upload a plan/photo into private-home-inputs/raw/ (local copy only). */
+export async function uploadPrivateFile(name: string, dataUrl: string): Promise<string | null> {
+  try {
+    const res = await fetch('/api/private-home/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, dataUrl }),
+    });
+    if (!res.ok) return null;
+    return ((await res.json()) as { filePath: string }).filePath;
+  } catch {
+    return null;
+  }
+}
+
+/** Persist a client-rasterized PNG; returns its private-relative path. */
+export async function saveRasterizedPage(name: string, dataUrl: string): Promise<string | null> {
+  try {
+    const res = await fetch('/api/private-home/rasterized', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, dataUrl }),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { filePath: string };
+    return data.filePath;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveManualScene(scene: HomeScene): Promise<boolean> {
+  try {
+    const res = await fetch('/api/private-home/manual-scene', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(scene),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }

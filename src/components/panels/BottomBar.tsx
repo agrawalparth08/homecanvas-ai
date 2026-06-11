@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchVariants } from '../../api';
+import { Icon } from '../ui/Icon';
 import { useEditor, type ViewMode } from '../../store/editor-store';
 
 const VIEW_MODES: { id: ViewMode; label: string }[] = [
@@ -23,9 +24,26 @@ export function BottomBar() {
   const setActiveFloor = useEditor((s) => s.setActiveFloor);
   const showBefore = useEditor((s) => s.showBefore);
   const setShowBefore = useEditor((s) => s.setShowBefore);
+  const compareMode = useEditor((s) => s.compareMode);
+  const setCompareMode = useEditor((s) => s.setCompareMode);
+  const setPhotoMode = useEditor((s) => s.setPhotoMode);
   const saveVariant = useEditor((s) => s.saveVariant);
   const loadVariant = useEditor((s) => s.loadVariant);
   const activeVariantId = useEditor((s) => s.activeVariantId);
+  const capturePhoto = useEditor((s) => s.capturePhoto);
+  const [shooting, setShooting] = useState(false);
+
+  const onSavePhoto = async () => {
+    if (!capturePhoto) return;
+    setShooting(true);
+    try {
+      await capturePhoto();
+    } finally {
+      setShooting(false);
+    }
+  };
+  // Capture is meant for the settled orbit/top views, not a moving camera.
+  const canShoot = !!capturePhoto && viewMode !== 'tour' && viewMode !== 'walk';
 
   const queryClient = useQueryClient();
   const { data: variants = [] } = useQuery({
@@ -43,16 +61,16 @@ export function BottomBar() {
     void queryClient.invalidateQueries({ queryKey: ['variants', projectId] });
   };
 
-  const button = 'rounded px-2.5 py-1.5 text-xs text-neutral-200 bg-neutral-800 enabled:hover:bg-neutral-700 disabled:opacity-40';
+  const button = 'inline-flex items-center gap-1 rounded px-2.5 py-1.5 text-xs text-neutral-200 bg-neutral-800 enabled:hover:bg-neutral-700 disabled:opacity-40';
 
   return (
     <div className="flex items-center gap-3 border-t border-panel-border bg-panel px-3 py-2">
       <div className="flex gap-1.5">
         <button className={button} disabled={undoCount === 0} onClick={undo} title="Undo (validated replay)">
-          ↩ Undo
+          <Icon name="undo" /> Undo
         </button>
         <button className={button} disabled={redoCount === 0} onClick={redo}>
-          ↪ Redo
+          <Icon name="redo" /> Redo
         </button>
       </div>
 
@@ -92,21 +110,43 @@ export function BottomBar() {
           </button>
         )}
         <button
-          className={`rounded px-2.5 py-1.5 text-xs ${viewMode === 'tour' ? 'bg-accent/25 text-accent' : 'bg-accent/15 text-accent hover:bg-accent/25'}`}
+          className={`inline-flex items-center gap-1 rounded px-2.5 py-1.5 text-xs ${viewMode === 'tour' ? 'bg-accent/25 text-accent' : 'bg-accent/15 text-accent hover:bg-accent/25'}`}
           onClick={startTour}
           title="Guided walkthrough from the entrance through each room"
         >
-          ▶ Tour
+          <Icon name="play" /> Tour
         </button>
       </div>
 
       <div className="ml-auto flex items-center gap-1.5">
         <button
-          className={`rounded px-2.5 py-1.5 text-xs ${showBefore ? 'bg-accent/25 text-accent' : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700'}`}
+          className={button}
+          onClick={() => void onSavePhoto()}
+          disabled={!canShoot || shooting}
+          title="Export a PNG of the current view"
+        >
+          <Icon name="image" /> {shooting ? 'Saving…' : 'Save photo'}
+        </button>
+        <button
+          className="inline-flex items-center gap-1 rounded px-2.5 py-1.5 text-xs text-accent bg-accent/15 hover:bg-accent/25"
+          onClick={() => setPhotoMode(true)}
+          title="Photoreal path-traced render (GPU)"
+        >
+          <Icon name="sparkles" /> Photoreal
+        </button>
+        <button
+          className={`inline-flex items-center gap-1 rounded px-2.5 py-1.5 text-xs ${showBefore ? 'bg-accent/25 text-accent' : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700'}`}
           onClick={() => setShowBefore(!showBefore)}
           title="Compare with the scene as loaded"
         >
-          {showBefore ? 'Showing: Before' : 'Before/After'}
+          <Icon name="compare" /> {showBefore ? 'Showing: Before' : 'Before/After'}
+        </button>
+        <button
+          className={`inline-flex items-center gap-1 rounded px-2.5 py-1.5 text-xs ${compareMode === 'slider' ? 'bg-accent/25 text-accent' : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700'}`}
+          onClick={() => setCompareMode(compareMode === 'slider' ? 'off' : 'slider')}
+          title="Drag a slider to wipe between the loaded baseline and your edits"
+        >
+          <Icon name="columns" /> Slider
         </button>
         <select
           className="rounded border border-panel-border bg-neutral-900 px-2 py-1.5 text-xs text-neutral-200"
@@ -121,7 +161,19 @@ export function BottomBar() {
           ))}
         </select>
         <button className={button} onClick={() => void onSave()} disabled={saving}>
-          {saving ? 'Saving…' : '+ Save variant'}
+          <Icon name="save" /> {saving ? 'Saving…' : 'Save variant'}
+        </button>
+        <button
+          className={button}
+          onClick={() => {
+            const a = document.createElement('a');
+            a.href = `/api/scenes/${projectId}/export`;
+            a.download = '';
+            a.click();
+          }}
+          title="Download this scene as JSON (re-importable)"
+        >
+          <Icon name="upload" /> Export
         </button>
       </div>
     </div>

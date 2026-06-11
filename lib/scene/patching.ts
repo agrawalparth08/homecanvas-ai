@@ -90,6 +90,21 @@ export const PatchOpSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('remove_opening'), openingId: EntityId }),
   z.object({ type: z.literal('add_stair'), floorId: EntityId, stair: StairSchema }),
   z.object({ type: z.literal('remove_stair'), stairId: EntityId }),
+  z.object({
+    type: z.literal('update_stair'),
+    stairId: EntityId,
+    patch: z.object({
+      position: Vec2Schema.optional(),
+      rotation: z.number().optional(),
+      kind: z.enum(['straight', 'L', 'U']).optional(),
+      turn: z.enum(['left', 'right']).optional(),
+      width: z.number().positive().optional(),
+      totalRise: z.number().positive().optional(),
+      treadRun: z.number().positive().optional(),
+      flightSplit: z.number().int().positive().optional(),
+      materialId: EntityId.optional(),
+    }),
+  }),
 
   // lighting
   z.object({ type: z.literal('add_light'), floorId: EntityId, light: LightSchema }),
@@ -116,6 +131,30 @@ export const PatchOpSchema = z.discriminatedUnion('type', [
   // references
   z.object({ type: z.literal('add_reference_image'), image: ReferenceImageSchema }),
   z.object({ type: z.literal('remove_reference_image'), imageId: EntityId }),
+
+  // 2D tracing (Phase 2): attach a plan underlay + scale calibration to a floor
+  z.object({
+    type: z.literal('set_floor_underlay'),
+    floorId: EntityId,
+    underlay: z.object({
+      filePath: z.string().min(1),
+      opacity: z.number().min(0).max(1),
+      widthPx: z.number().positive(),
+      heightPx: z.number().positive(),
+      page: z.number().int().positive().optional(),
+    }),
+  }),
+  z.object({ type: z.literal('clear_floor_underlay'), floorId: EntityId }),
+  z.object({
+    type: z.literal('set_floor_calibration'),
+    floorId: EntityId,
+    calibration: z.object({
+      mmPerPx: z.number().positive(),
+      originPx: Vec2Schema,
+      rotationDeg: z.number(),
+    }),
+  }),
+  z.object({ type: z.literal('set_underlay_opacity'), floorId: EntityId, opacity: z.number().min(0).max(1) }),
 ]);
 export type PatchOp = z.infer<typeof PatchOpSchema>;
 

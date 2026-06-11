@@ -4,7 +4,7 @@ import {
   DEFAULT_PARTITION_WALL_MM,
   DEFAULT_WALL_HEIGHT_MM,
 } from '../geometry/constants';
-import { MATERIAL_LIBRARY } from '../styles/material-library';
+import { cloneLibrary } from '../styles/material-library';
 import {
   SCHEMA_VERSION,
   sourceSample,
@@ -348,7 +348,7 @@ export function buildSampleHome(): HomeScene {
         ],
       },
     ],
-    materials: [...MATERIAL_LIBRARY],
+    materials: cloneLibrary(),
     locks: [],
     referenceImages: [],
     meta: { createdAt: now, updatedAt: now, notes: 'Anonymized demo fixture — not a real home.' },

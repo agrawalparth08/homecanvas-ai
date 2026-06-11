@@ -1,5 +1,9 @@
 # --- privacy: personal home data never enters git ---
 /private-home-inputs/
+# real-home trace DATA (room rects/labels + feature coords derived from the
+# private plan). The tracing TOOLING (scripts/trace/*.mjs) is committed; the
+# data it produces is not.
+/scripts/trace/*.json
 
 # --- local CC0 asset cache (downloaded by scripts/fetch-assets.ts) ---
 /asset-cache/

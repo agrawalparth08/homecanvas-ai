@@ -1,10 +1,14 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { SceneCanvas } from '../components/canvas/SceneCanvas';
+import { BeforeAfterCompare } from '../components/canvas/BeforeAfterCompare';
+import { PhotoMode } from '../components/canvas/PhotoMode';
 import { Inspector } from '../components/inspector/Inspector';
 import { BottomBar } from '../components/panels/BottomBar';
 import { LeftPanel } from '../components/panels/LeftPanel';
 import { TourPanel } from '../components/panels/TourPanel';
+import { ChatPanel } from '../components/chat/ChatPanel';
+import { Icon } from '../components/ui/Icon';
 import { useEditor } from '../store/editor-store';
 import type { ProjectId } from '../api';
 
@@ -12,7 +16,7 @@ function GuidedEmptyState() {
   const startFromSample = useEditor((s) => s.startFromSample);
   return (
     <div className="flex h-full items-center justify-center">
-      <div className="max-w-md rounded-xl border border-panel-border bg-panel p-6">
+      <div className="hc-hero max-w-md rounded-xl border border-panel-border p-6">
         <h2 className="text-lg font-semibold text-neutral-100">No “My Home” scene yet</h2>
         <p className="mt-2 text-sm text-neutral-400">
           The app looked for{' '}
@@ -45,22 +49,6 @@ function GuidedEmptyState() {
   );
 }
 
-function ErrorToast() {
-  const errors = useEditor((s) => s.lastErrors);
-  const clear = useEditor((s) => s.clearErrors);
-  if (errors.length === 0) return null;
-  return (
-    <button
-      onClick={clear}
-      className="absolute bottom-16 left-1/2 z-20 -translate-x-1/2 rounded-lg border border-red-900 bg-red-950/95 px-4 py-2 text-left text-xs text-red-200 shadow-xl"
-    >
-      <span className="font-semibold">Change rejected:</span>{' '}
-      {errors[0]!.message}
-      {errors.length > 1 ? ` (+${errors.length - 1} more)` : ''} — click to dismiss
-    </button>
-  );
-}
-
 export function DesignPage() {
   const params = useParams();
   const projectId = (params['projectId'] === 'my-home' ? 'my-home' : 'sample-home') as ProjectId;
@@ -70,10 +58,37 @@ export function DesignPage() {
   const scene = useEditor((s) => s.scene);
   const showBefore = useEditor((s) => s.showBefore);
   const viewMode = useEditor((s) => s.viewMode);
+  const compareMode = useEditor((s) => s.compareMode);
+  const baseline = useEditor((s) => s.baseline);
+  const activeFloorId = useEditor((s) => s.activeFloorId);
+  const photoMode = useEditor((s) => s.photoMode);
+  const undo = useEditor((s) => s.undo);
+  const redo = useEditor((s) => s.redo);
+  const [rightTab, setRightTab] = useState<'inspector' | 'assistant'>('inspector');
 
   useEffect(() => {
     void loadProject(projectId);
   }, [projectId, loadProject]);
+
+  // Cmd/Ctrl+Z to undo, ⇧+that or Cmd/Ctrl+Y to redo — the BottomBar button alone
+  // wasn't enough; the keyboard shortcut people reach for first did nothing.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      const k = e.key.toLowerCase();
+      if (k === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      } else if ((k === 'z' && e.shiftKey) || k === 'y') {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [undo, redo]);
 
   return (
     <div className="flex h-screen flex-col bg-canvas-bg text-neutral-100">
@@ -82,6 +97,12 @@ export function DesignPage() {
           HomeCanvas AI
         </Link>
         <span className="text-xs text-neutral-500">{scene?.name ?? projectId}</span>
+        <Link to="/verify" className="inline-flex items-center gap-1.5 rounded-md bg-accent/12 px-2.5 py-1 text-xs font-medium text-accent hover:bg-accent/20">
+          <Icon name="pencil" /> Trace plan
+        </Link>
+        <Link to="/variants" className="inline-flex items-center gap-1.5 rounded-md bg-accent/12 px-2.5 py-1 text-xs font-medium text-accent hover:bg-accent/20">
+          <Icon name="columns" /> Boards
+        </Link>
         {showBefore && <span className="rounded bg-accent/20 px-2 py-0.5 text-xs text-accent">BEFORE</span>}
         <span className="ml-auto text-[11px] text-neutral-600">
           local-first · nothing leaves this machine · visualizations are approximations, not construction drawings
@@ -99,20 +120,45 @@ export function DesignPage() {
           <>
             <LeftPanel />
             <main className="relative min-w-0 flex-1">
-              <SceneCanvas />
+              {compareMode === 'slider' && viewMode !== 'tour' && baseline && scene && activeFloorId ? (
+                <BeforeAfterCompare baseline={baseline} current={scene} floorId={activeFloorId} />
+              ) : (
+                <SceneCanvas />
+              )}
               {viewMode === 'tour' && <TourPanel />}
-              <ErrorToast />
+              {photoMode && <PhotoMode />}
             </main>
             {viewMode !== 'tour' && (
-              <aside className="w-72 overflow-y-auto border-l border-panel-border bg-panel">
-                <Inspector />
+              <aside className="flex w-80 flex-col border-l border-panel-border bg-panel">
+                <div className="flex shrink-0 border-b border-panel-border text-xs font-medium">
+                  {(['inspector', 'assistant'] as const).map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => setRightTab(t)}
+                      className={`flex-1 px-3 py-2 capitalize ${rightTab === t ? 'border-b-2 border-accent text-accent' : 'text-neutral-500 hover:text-neutral-300'}`}
+                    >
+                      {t === 'assistant' ? 'Assistant' : 'Inspector'}
+                    </button>
+                  ))}
+                </div>
+                {rightTab === 'inspector' ? (
+                  <div className="min-h-0 flex-1 overflow-y-auto">
+                    <Inspector />
+                  </div>
+                ) : (
+                  <div className="min-h-0 flex-1">
+                    <ChatPanel />
+                  </div>
+                )}
               </aside>
             )}
           </>
         )}
       </div>
 
-      {!loading && !guidedEmpty && <BottomBar />}
+      {/* Photo Mode is a dedicated fullscreen path-traced view with its own camera
+          presets — the raster view-mode/tour controls don't apply, so hide them. */}
+      {!loading && !guidedEmpty && !photoMode && <BottomBar />}
     </div>
   );
 }

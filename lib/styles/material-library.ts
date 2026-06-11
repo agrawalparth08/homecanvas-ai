@@ -9,9 +9,9 @@ import type { Material } from '../scene/schemas';
 export const MATERIAL_LIBRARY: Material[] = [
   {
     id: 'mat-paint-white',
-    name: 'Warm White Paint',
+    name: 'White Paint',
     category: 'paint',
-    baseColor: '#f4efe6',
+    baseColor: '#f3f3f1',
     pbr: { roughness: 0.94, metallic: 0, repeatScale: 1000 },
     styleTags: ['neutral', 'minimal'],
   },
@@ -54,6 +54,24 @@ export const MATERIAL_LIBRARY: Material[] = [
     baseColor: '#e9e4da',
     pbr: { roughness: 0.18, metallic: 0, textureSetRef: 'marble_ivory', repeatScale: 1200 },
     styleTags: ['luxury', 'premium', 'indian-modern'],
+  },
+  {
+    id: 'mat-floor-marble-grey',
+    name: 'Grey Marble',
+    category: 'marble',
+    baseColor: '#b6babe',
+    // reuse the marble veining, tinted grey; polished sheen.
+    pbr: { roughness: 0.16, metallic: 0, textureSetRef: 'marble_ivory', tint: '#9aa0a6', repeatScale: 1500 },
+    styleTags: ['contemporary', 'luxury', 'minimal'],
+  },
+  {
+    id: 'mat-tile-grey-matt',
+    name: 'Grey Matt Tile',
+    category: 'ceramicTile',
+    baseColor: '#8f928f',
+    // square porcelain tiles, matt finish, grey tint — terraces.
+    pbr: { roughness: 0.9, metallic: 0, textureSetRef: 'tiles_porcelain', tint: '#8f928f', repeatScale: 500 },
+    styleTags: ['minimal', 'contemporary', 'outdoor'],
   },
   {
     id: 'mat-floor-kota',
@@ -173,4 +191,18 @@ export function libraryMaterial(id: string): Material {
   const material = MATERIAL_LIBRARY.find((m) => m.id === id);
   if (!material) throw new Error(`material library has no "${id}"`);
   return material;
+}
+
+/** A material with its nested pbr/styleTags deep-copied — never the singleton. */
+export function cloneMaterial(m: Material): Material {
+  return { ...m, pbr: { ...m.pbr }, styleTags: [...m.styleTags] };
+}
+
+/**
+ * Fresh copies of the whole library. Seed a scene's `materials` with THIS, not
+ * `[...MATERIAL_LIBRARY]` — the latter shares element references, so immer's
+ * autoFreeze would deep-freeze the global singletons on the first commit.
+ */
+export function cloneLibrary(): Material[] {
+  return MATERIAL_LIBRARY.map(cloneMaterial);
 }

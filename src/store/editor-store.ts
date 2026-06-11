@@ -2,9 +2,19 @@ import { create } from 'zustand';
 import { commit, commitPatches, type CommitLogEntry } from '@lib/scene/commit';
 import type { ScenePatch } from '@lib/scene/patching';
 import { SCHEMA_VERSION, type DesignVariant, type HomeScene } from '@lib/scene/schemas';
+import type { CompareMode } from '@lib/ui/compare';
 import type { ValidationIssue } from '@lib/scene/validation';
 import { buildSampleHome } from '@lib/fixtures/sample-home';
 import { fetchScene, fetchVariant, persistScene, saveVariantRemote, type ProjectId } from '../api';
+import { reportError } from './error-store';
+
+/** Push commit-rejection issues to the on-screen error surface (not just the inline toast). */
+function surfaceRejection(errors: ValidationIssue[], context: string): void {
+  const first = errors[0];
+  if (!first) return;
+  const more = errors.length > 1 ? ` (+${errors.length - 1} more)` : '';
+  reportError(`${context}: ${first.message}${more}`, { kind: 'rejected' });
+}
 
 export type SelectionType = 'room' | 'wall' | 'furniture' | 'stair' | 'opening';
 export interface Selection {
@@ -35,6 +45,8 @@ interface EditorState {
 
   loadProject: (projectId: ProjectId) => Promise<void>;
   startFromSample: () => void;
+  /** Inject a scene directly (e.g. a freshly traced home) and persist it. */
+  loadSceneObject: (projectId: ProjectId, scene: HomeScene) => void;
   applyPatch: (patch: ScenePatch) => boolean;
   undo: () => void;
   redo: () => void;
@@ -42,6 +54,18 @@ interface EditorState {
   setActiveFloor: (floorId: string) => void;
   setViewMode: (mode: ViewMode) => void;
   setShowBefore: (show: boolean) => void;
+  /** Spatial before/after wipe: 'off' = normal single view, 'slider' = clipped dual render. */
+  compareMode: CompareMode;
+  /** Handle x-position 0..1: left of it shows the baseline (Before), right shows current edits (After). */
+  sliderPos: number;
+  setCompareMode: (mode: CompareMode) => void;
+  setSliderPos: (pos: number) => void;
+  /** Registered by the in-Canvas PhotoCapture bridge; null until the canvas mounts. */
+  capturePhoto: (() => Promise<void>) | null;
+  setCapturePhoto: (fn: (() => Promise<void>) | null) => void;
+  /** Photoreal (path-traced) Photo Mode overlay open. */
+  photoMode: boolean;
+  setPhotoMode: (open: boolean) => void;
   startTour: () => void;
   exitTour: () => void;
   tourNext: () => void;
@@ -60,11 +84,18 @@ let persistTimer: ReturnType<typeof setTimeout> | null = null;
 // The pending write's (project, scene) so a context switch can flush it.
 let pendingPersist: { projectId: ProjectId; scene: HomeScene } | null = null;
 
+/** Persist, and surface a visible warning if the local sidecar write fails (silent data loss otherwise). */
+function persistAndReport(projectId: ProjectId, scene: HomeScene): void {
+  void persistScene(projectId, scene).then((ok) => {
+    if (!ok) reportError("Couldn't save your edits to disk — is the local server running?", { kind: 'network' });
+  });
+}
+
 function schedulePersist(projectId: ProjectId, scene: HomeScene): void {
   if (persistTimer) clearTimeout(persistTimer);
   pendingPersist = { projectId, scene };
   persistTimer = setTimeout(() => {
-    void persistScene(projectId, scene);
+    persistAndReport(projectId, scene);
     persistTimer = null;
     pendingPersist = null;
   }, 800);
@@ -73,7 +104,7 @@ function schedulePersist(projectId: ProjectId, scene: HomeScene): void {
 /** Write any pending debounced edit immediately — call before switching project/variant. */
 function flushPersist(): void {
   if (persistTimer) clearTimeout(persistTimer);
-  if (pendingPersist) void persistScene(pendingPersist.projectId, pendingPersist.scene);
+  if (pendingPersist) persistAndReport(pendingPersist.projectId, pendingPersist.scene);
   persistTimer = null;
   pendingPersist = null;
 }
@@ -94,6 +125,10 @@ export const useEditor = create<EditorState>((set, get) => ({
   redoStack: [],
   lastErrors: [],
   activeVariantId: null,
+  compareMode: 'off',
+  sliderPos: 0.5,
+  capturePhoto: null,
+  photoMode: false,
 
   loadProject: async (projectId) => {
     flushPersist(); // never drop the previous project's last <800ms of edits
@@ -124,12 +159,30 @@ export const useEditor = create<EditorState>((set, get) => ({
     void persistScene(projectId, scene);
   },
 
+  loadSceneObject: (projectId, scene) => {
+    flushPersist();
+    set({
+      projectId,
+      scene,
+      baseline: scene,
+      guidedEmpty: false,
+      loading: false,
+      selection: null,
+      undoStack: [],
+      redoStack: [],
+      activeVariantId: null,
+      activeFloorId: scene.floors[0]?.id ?? null,
+    });
+    void persistScene(projectId, scene);
+  },
+
   applyPatch: (patch) => {
     const { scene, projectId, undoStack } = get();
     if (!scene) return false;
     const result = commit(scene, patch);
     if (!result.ok) {
       set({ lastErrors: result.errors });
+      surfaceRejection(result.errors, 'Edit rejected');
       return false;
     }
     set({
@@ -149,6 +202,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     const result = commitPatches(scene, entry.undo);
     if (!result.ok) {
       set({ lastErrors: result.errors });
+      surfaceRejection(result.errors, 'Undo failed');
       return;
     }
     set({
@@ -167,6 +221,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     const result = commitPatches(scene, entry.redo);
     if (!result.ok) {
       set({ lastErrors: result.errors });
+      surfaceRejection(result.errors, 'Redo failed');
       return;
     }
     set({
@@ -182,6 +237,10 @@ export const useEditor = create<EditorState>((set, get) => ({
   setActiveFloor: (floorId) => set({ activeFloorId: floorId, selection: null, tourIndex: 0 }),
   setViewMode: (viewMode) => set({ viewMode }),
   setShowBefore: (showBefore) => set({ showBefore }),
+  setCompareMode: (compareMode) => set({ compareMode }),
+  setSliderPos: (sliderPos) => set({ sliderPos: sliderPos < 0 ? 0 : sliderPos > 1 ? 1 : sliderPos }),
+  setCapturePhoto: (capturePhoto) => set({ capturePhoto }),
+  setPhotoMode: (photoMode) => set({ photoMode }),
 
   startTour: () => set({ viewMode: 'tour', tourIndex: 0, tourPlaying: true, selection: null }),
   exitTour: () => set({ viewMode: 'orbit', tourPlaying: false }),

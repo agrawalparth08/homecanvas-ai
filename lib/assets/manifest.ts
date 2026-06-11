@@ -24,6 +24,31 @@ export const CURATED_HDRIS: CuratedHdri[] = [
   { key: 'sunset', slug: 'venice_sunset', resolution: '2k' },
 ];
 
+export interface CuratedModel {
+  /** Catalog model key — matches CatalogItem.model / FurnitureObject.assetRef. */
+  key: string;
+  /** Poly Haven model slug. */
+  slug: string;
+  resolution: '1k' | '2k';
+}
+
+/**
+ * CC0 furniture glTF (Poly Haven, 79 furniture models). Mapped to catalog keys;
+ * any catalog piece without a model here falls back to its procedural mesh. The
+ * "chinese_*" carved-wood pieces are the nearest CC0 match to an Indian aesthetic.
+ */
+export const CURATED_FURNITURE: CuratedModel[] = [
+  { key: 'sofa', slug: 'Sofa_01', resolution: '1k' },
+  { key: 'armchair', slug: 'ArmChair_01', resolution: '1k' },
+  { key: 'chair', slug: 'WoodenChair_01', resolution: '1k' },
+  { key: 'diningTable', slug: 'WoodenTable_01', resolution: '1k' },
+  { key: 'coffeeTable', slug: 'CoffeeTable_01', resolution: '1k' },
+  { key: 'bed', slug: 'GothicBed_01', resolution: '1k' },
+  { key: 'wardrobe', slug: 'chinese_cabinet', resolution: '1k' },
+  { key: 'bookshelf', slug: 'Shelf_01', resolution: '1k' },
+  { key: 'console', slug: 'chinese_console_table', resolution: '1k' },
+];
+
 export const CURATED_TEXTURES: CuratedTexture[] = [
   { key: 'wood_floor_oak', slug: 'wood_floor_deck' },
   { key: 'wood_floor_walnut', slug: 'dark_wood' },
@@ -49,11 +74,19 @@ export interface DownloadedTextureSet {
   };
 }
 
+export interface DownloadedModel {
+  key: string;
+  slug: string;
+  /** Cache-relative path to the .gltf entry file. */
+  file: string;
+}
+
 export interface AssetCacheManifest {
   schemaVersion: 1;
   downloadedAt: string;
   hdris: Record<string, { file: string; slug: string }>;
   textures: Record<string, DownloadedTextureSet>;
+  models: Record<string, DownloadedModel>;
 }
 
 export const EMPTY_ASSET_MANIFEST: AssetCacheManifest = {
@@ -61,4 +94,5 @@ export const EMPTY_ASSET_MANIFEST: AssetCacheManifest = {
   downloadedAt: '',
   hdris: {},
   textures: {},
+  models: {},
 };

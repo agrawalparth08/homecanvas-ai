@@ -17,20 +17,27 @@
     "test:watch": "vitest",
     "init:private": "tsx scripts/init-private-folders.ts",
     "detect:private": "tsx scripts/detect-private-home-files.ts",
-    "fetch:assets": "tsx scripts/fetch-assets.ts"
+    "fetch:assets": "tsx scripts/fetch-assets.ts",
+    "bridge:pending": "tsx scripts/bridge-pending.ts"
   },
   "dependencies": {
+    "@fontsource-variable/inter": "5.2.8",
     "@hono/node-server": "2.0.4",
     "@react-three/drei": "10.7.7",
     "@react-three/fiber": "9.6.1",
     "@react-three/postprocessing": "3.0.4",
     "@tanstack/react-query": "5.101.0",
+    "dxf": "^5.3.1",
     "hono": "4.12.25",
     "immer": "11.1.8",
+    "pdfjs-dist": "^6.0.227",
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "react-router": "^7.6.0",
+    "tesseract.js": "^6.0.1",
     "three": "0.184.0",
+    "three-gpu-pathtracer": "0.0.24",
+    "three-mesh-bvh": "0.9.10",
     "zod": "4.4.3",
     "zustand": "5.0.14"
   },

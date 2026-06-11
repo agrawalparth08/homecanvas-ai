@@ -1,5 +1,5 @@
 import type { ScenePatch } from '../scene/patching';
-import type { HomeScene } from '../scene/schemas';
+import type { GeometryCorrectionProposal, HomeScene } from '../scene/schemas';
 
 /**
  * AI provider boundary. Four implementations are planned:
@@ -49,6 +49,17 @@ export interface AgentProvider {
   capabilities(): ProviderCapabilities;
   /** Natural-language request -> structured edit proposals (never auto-applied). */
   proposeEdits(message: string, ctx: AgentRequestContext): Promise<AgentEditProposal[]>;
+  /**
+   * Produce `count` DISTINCT design options for a room (or the whole home),
+   * each a self-contained proposal the user previews and applies one at a time.
+   * Optional: providers without the capability omit it.
+   */
+  generateVariants?(message: string, ctx: AgentRequestContext, count: number): Promise<AgentEditProposal[]>;
+  /**
+   * Inspect the scene for extraction problems and propose geometry corrections
+   * (each previewed → approved → committed). Optional.
+   */
+  proposeCorrections?(ctx: AgentRequestContext): Promise<GeometryCorrectionProposal[]>;
 }
 
 const NONE: ProviderCapabilities = {

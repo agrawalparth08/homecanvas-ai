@@ -1,10 +1,30 @@
 @import 'tailwindcss';
 
+/*
+ * Sarvam-inspired theme: clean cool-light chrome, near-black text, a vivid
+ * indigo accent, and a premium dark 3D stage. The neutral ramp is INVERTED +
+ * cool-tinted so existing utility usage flips correctly app-wide:
+ *   text-neutral-100  → near-black (primary text)
+ *   text-neutral-400/500 → cool grey (muted)
+ *   bg-neutral-800/900 → soft cool-grey surfaces
+ */
 @theme {
-  --color-canvas-bg: #101013;
-  --color-panel: #17171b;
-  --color-panel-border: #2a2a30;
-  --color-accent: #d8a25a;
+  --color-canvas-bg: #edeef2;   /* app backdrop (cool light) */
+  --color-panel: #ffffff;       /* panels / chrome */
+  --color-panel-border: #e4e6ec;
+  --color-accent: #4b46e5;      /* indigo */
+
+  --color-neutral-50: #131418;
+  --color-neutral-100: #1b1d24;  /* primary text (near-black navy) */
+  --color-neutral-200: #2a2d37;
+  --color-neutral-300: #41454f;
+  --color-neutral-400: #646b78;  /* secondary */
+  --color-neutral-500: #7d8390;  /* muted */
+  --color-neutral-600: #9aa0ac;
+  --color-neutral-700: #c3c7d0;
+  --color-neutral-800: #e8eaf0;  /* light surface (buttons, chips) */
+  --color-neutral-900: #f3f4f7;  /* lighter surface */
+  --color-neutral-950: #f8f9fb;
 }
 
 html,
@@ -15,5 +35,55 @@ body,
 }
 
 body {
-  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  background: var(--color-canvas-bg);
+  color: var(--color-neutral-100);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
+
+/*
+ * Sarvam-style soft gradient accents. Pale, low-saturation washes layered over
+ * a white panel — used on the home hero, empty states, and CTA surfaces. Pure
+ * decoration; never the only signal for state.
+ */
+.hc-hero {
+  background:
+    radial-gradient(120% 150% at 0% 0%, #e7ecff 0%, transparent 46%),
+    radial-gradient(120% 150% at 100% 0%, #ffe9e1 0%, transparent 42%),
+    radial-gradient(150% 170% at 100% 100%, #e3f6ee 0%, transparent 46%),
+    var(--color-panel);
+}
+.hc-accent-grad {
+  background: linear-gradient(135deg, #6a88e2 0%, #556adc 48%, #8d6ad6 100%);
+}
+.hc-card-glow {
+  position: relative;
+  isolation: isolate;
+}
+.hc-card-glow::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(106, 136, 226, 0.55), rgba(141, 106, 214, 0.18) 40%, transparent 70%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: -1;
+}
+.hc-card-glow:hover::before {
+  opacity: 1;
+}
+
+/* Refined, unobtrusive scrollbars. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #cdd1da transparent;
+}
+*::-webkit-scrollbar { width: 9px; height: 9px; }
+*::-webkit-scrollbar-thumb { background: #cdd1da; border-radius: 6px; }
+*::-webkit-scrollbar-thumb:hover { background: #b9bec9; }

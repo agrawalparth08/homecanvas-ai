@@ -4,6 +4,7 @@ import { Canvas, useThree } from '@react-three/fiber';
 import {
   ContactShadows,
   Environment,
+  Grid,
   Lightformer,
   MapControls,
   OrbitControls,
@@ -35,6 +36,48 @@ function SceneEnvironment({ hdriFile }: { hdriFile: string | null }) {
       <Lightformer intensity={1.2} color="#fff4e0" position={[5, 1.5, -1]} rotation-y={-Math.PI / 2} scale={[6, 2, 1]} />
     </Environment>
   );
+}
+
+/**
+ * Photo Mode v1 — exports a PNG of the EXISTING interactive render (AgX + IBL +
+ * N8AO + Bloom, all baked in because we read the post-composer CANVAS, not the
+ * raw scene). Lives inside <Canvas> to reach the renderer via useThree, and
+ * bridges an imperative capture fn out through the store so a toolbar button
+ * (outside the Canvas) can trigger it.
+ *
+ * Resolution = the canvas drawing buffer (CSS size × device pixel ratio), so on
+ * a retina display it's already ~2×. NB: we intentionally do NOT bump
+ * gl.setPixelRatio to "supersample" — the @react-three/postprocessing
+ * EffectComposer sizes its internal targets from R3F's logical size and would
+ * NOT rebuild them for a one-off ratio change, so that only upscales a low-res
+ * render. True supersampling needs a dedicated offscreen composer (documented
+ * Photo-Mode enhancement, see photomode/types.ts).
+ */
+function PhotoCapture() {
+  const gl = useThree((s) => s.gl);
+  const advance = useThree((s) => s.advance);
+  const setCapturePhoto = useEditor((s) => s.setCapturePhoto);
+
+  useEffect(() => {
+    const capture = async () => {
+      advance(performance.now()); // force a fresh, fully-composited frame
+      await new Promise<void>((r) => requestAnimationFrame(() => r()));
+      const blob = await new Promise<Blob | null>((res) => gl.domElement.toBlob((b) => res(b), 'image/png'));
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `homecanvas-${Date.now()}.png`;
+      a.click();
+      // Defer revoke: revoking synchronously after click() can abort the
+      // download in Firefox/WebKit before the blob is read.
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    };
+    setCapturePhoto(capture);
+    return () => setCapturePhoto(null);
+  }, [gl, advance, setCapturePhoto]);
+
+  return null;
 }
 
 function CameraRig({ scene }: { scene: HomeScene }) {
@@ -88,7 +131,7 @@ export function SceneCanvas() {
   const select = useEditor((s) => s.select);
   const { data: assets } = useQuery({ queryKey: ['asset-manifest'], queryFn: fetchAssetManifest, staleTime: Infinity });
 
-  const assetManifest = assets ?? { schemaVersion: 1 as const, downloadedAt: '', hdris: {}, textures: {} };
+  const assetManifest = assets ?? { schemaVersion: 1 as const, downloadedAt: '', hdris: {}, textures: {}, models: {} };
   const materials = useMaterialMap(scene, assetManifest);
 
   const viewMode = useEditor((s) => s.viewMode);
@@ -107,13 +150,15 @@ export function SceneCanvas() {
       // against three r184 (unpackRGBAToDepth removed) and PCFSoft is deprecated.
       shadows={{ type: THREE.PCFShadowMap }}
       camera={{ fov: 45, position: [12, 9, 12] }}
-      gl={{ antialias: true }}
+      // preserveDrawingBuffer lets Photo Mode read the post-composer buffer back
+      // for a PNG; it must be set at context creation (can't be toggled live).
+      gl={{ antialias: true, preserveDrawingBuffer: true, alpha: false }}
       onCreated={({ gl }) => {
         gl.toneMapping = THREE.AgXToneMapping;
         gl.toneMappingExposure = 1.1;
       }}
       onPointerMissed={() => select(null)}
-      style={{ background: '#101013' }}
+      style={{ background: '#13141b' }}
     >
       <Suspense fallback={null}>
         <SceneEnvironment hdriFile={hdri} />
@@ -127,7 +172,23 @@ export function SceneCanvas() {
           />
         ))}
         <ContactShadows position={[5.4, 0.005, -4.2]} scale={18} opacity={0.35} blur={2.2} far={3} />
+        {viewMode !== 'walk' && (
+          <Grid
+            position={[0, -0.012, 0]}
+            args={[60, 60]}
+            cellSize={0.5}
+            cellThickness={0.6}
+            cellColor="#262a38"
+            sectionSize={2.5}
+            sectionThickness={1}
+            sectionColor="#3b4150"
+            infiniteGrid
+            fadeDistance={44}
+            fadeStrength={1.2}
+          />
+        )}
         <CameraRig scene={scene} />
+        <PhotoCapture />
         {viewMode === 'tour' && tourStops.length > 0 && <TourController stops={tourStops} />}
         <EffectComposer multisampling={0}>
           <N8AO halfRes aoRadius={0.9} intensity={2.4} distanceFalloff={0.6} />

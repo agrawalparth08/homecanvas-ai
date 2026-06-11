@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { migrateSceneDocument } from '../lib/scene/migrations';
@@ -44,25 +44,55 @@ function variantsDir(projectId: ProjectId): string {
     : path.join(APP_DATA, 'projects', 'sample-home', 'variants');
 }
 
-async function atomicWrite(filePath: string, data: string): Promise<void> {
+export async function atomicWrite(filePath: string, data: string | Uint8Array): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
   const tmp = `${filePath}.tmp-${process.pid}-${Date.now()}`;
   await writeFile(tmp, data);
   await rename(tmp, filePath);
 }
 
+/** Resolve a path inside private-home-inputs/, rejecting any traversal escape. */
+export function resolvePrivateFile(rel: string): string | null {
+  const resolved = path.resolve(PRIVATE_ROOT, rel);
+  if (resolved !== PRIVATE_ROOT && !resolved.startsWith(PRIVATE_ROOT + path.sep)) return null;
+  return resolved;
+}
+
+/** Save an uploaded plan/photo into raw/; returns its path relative to PRIVATE_ROOT. */
+export async function saveRawUpload(name: string, bytes: Uint8Array): Promise<string> {
+  const safe = name.replace(/[^a-zA-Z0-9._ -]/g, '_').slice(-120) || 'upload';
+  const rel = path.join('raw', safe);
+  await atomicWrite(path.join(PRIVATE_ROOT, rel), bytes);
+  return rel;
+}
+
+/** Save a rasterized plan page PNG; returns its path relative to PRIVATE_ROOT. */
+export async function saveRasterizedPage(name: string, png: Uint8Array): Promise<string> {
+  const safe = name.replace(/[^a-zA-Z0-9._-]+/g, '_');
+  const rel = path.join('processed', 'rasterized-pages', safe.endsWith('.png') ? safe : `${safe}.png`);
+  await atomicWrite(path.join(PRIVATE_ROOT, rel), png);
+  return rel;
+}
+
+export async function saveManualScene(scene: HomeScene): Promise<void> {
+  await atomicWrite(manualScenePath(), JSON.stringify(scene, null, 2));
+}
+
 export async function loadScene(projectId: ProjectId): Promise<HomeScene | null> {
   const file = scenePath(projectId);
-  if (!existsSync(file)) {
-    // my-home falls back to the manually traced scene when no generated one exists
-    if (projectId === 'my-home' && existsSync(manualScenePath())) {
-      const raw = JSON.parse(await readFile(manualScenePath(), 'utf8'));
-      return migrateSceneDocument(raw);
-    }
-    return null;
+  // my-home: load whichever is newer — the generated trace or the wizard's
+  // hand-tuned save — so fine-tuning in the wizard survives a reload, while a
+  // fresh regenerate (newer file) takes over.
+  if (projectId === 'my-home') {
+    const manual = manualScenePath();
+    const genT = existsSync(file) ? statSync(file).mtimeMs : -1;
+    const manT = existsSync(manual) ? statSync(manual).mtimeMs : -1;
+    const pick = manT > genT ? manual : genT >= 0 ? file : null;
+    if (!pick) return null;
+    return migrateSceneDocument(JSON.parse(await readFile(pick, 'utf8')));
   }
-  const raw = JSON.parse(await readFile(file, 'utf8'));
-  return migrateSceneDocument(raw);
+  if (!existsSync(file)) return null;
+  return migrateSceneDocument(JSON.parse(await readFile(file, 'utf8')));
 }
 
 export async function saveScene(projectId: ProjectId, scene: HomeScene): Promise<void> {

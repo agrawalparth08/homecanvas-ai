@@ -11,6 +11,9 @@
 # --- local app data (scenes, variants, job records written by the sidecar) ---
 /.homecanvas/
 
+# demo video: build artifacts stay local (final MP4 is committed under docs/)
+/demo-video/out/
+
 node_modules/
 dist/
 coverage/

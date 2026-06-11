@@ -1,7 +1,8 @@
 import React from 'react';
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
-import { C, FONT } from '../theme';
+import { C, CARD, FONT } from '../theme';
 import { Cursor } from '../components/Cursor';
+import { WarnIcon } from '../components/Icons';
 
 const SWATCHES = ['#b08968', '#8d99ae', '#d8c3a5', '#5e6472', '#9c6644'];
 const PACKS = ['Indian Modern', 'Rajasthani Heritage', 'Fusion Japandi', 'Warm Minimal'];
@@ -12,21 +13,16 @@ export const EditScene: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  // phase 1 (0–110): cursor picks a floor swatch
   const swatchClick = interpolate(frame, [62, 78], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
-  // phase 2 (105–215): style packs cycle
   const packIdx = Math.min(PACKS.length - 1, Math.max(0, Math.floor((frame - 105) / 28)));
   const packsActive = frame >= 105 && frame < 225;
-  // phase 3 (215–300): stair rotates 90°
   const stairTurn = interpolate(frame, [228, 268], [0, 90], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
-  // phase 4 (300+): pillar confirm dialog
   const dialogIn = spring({ frame: frame - 302, fps, config: { damping: 15, stiffness: 130 } });
   const showDialog = frame >= 302 && frame < 372;
   const pillarGone = frame >= 372;
 
-  const floorColor = frame < 78 ? '#7a6a58' : frame < 133 ? SWATCHES[0]! : PACK_FLOORS[packIdx]!;
+  const floorColor = frame < 78 ? '#8a7a68' : frame < 133 ? SWATCHES[0]! : PACK_FLOORS[packIdx]!;
 
-  // cursor path: swatch row → pack chips → stair card → dialog confirm
   const cx = interpolate(frame, [20, 60, 110, 150, 230, 300, 330], [700, 1232, 1310, 1310, 1335, 1110, 1110], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
@@ -37,28 +33,21 @@ export const EditScene: React.FC = () => {
   });
   const dialogClick = interpolate(frame, [344, 360], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
 
-  const card: React.CSSProperties = {
-    background: C.bgPanel,
-    border: `1px solid ${C.panelBorder}`,
-    borderRadius: 16,
-    padding: '20px 24px',
-  };
-  const cardTitle: React.CSSProperties = { fontSize: 21, fontWeight: 600, color: C.textDim, marginBottom: 14 };
+  const card: React.CSSProperties = { ...CARD, padding: '20px 24px' };
+  const cardTitle: React.CSSProperties = { fontSize: 21, fontWeight: 600, color: C.inkDim, marginBottom: 14 };
 
   return (
     <AbsoluteFill style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 40, padding: 80, fontFamily: FONT }}>
       {/* the room being edited */}
       <div style={{ ...card, width: 880, height: 660, position: 'relative', overflow: 'hidden' }}>
         <div style={{ ...cardTitle }}>LIVING — 21.4 m²</div>
-        {/* floor */}
-        <div style={{ position: 'absolute', left: 40, top: 90, width: 790, height: 480, background: floorColor, borderRadius: 10, opacity: 0.92 }} />
-        {/* back wall strip */}
-        <div style={{ position: 'absolute', left: 40, top: 64, width: 790, height: 30, background: '#e8e3d9', borderRadius: 6 }} />
+        <div style={{ position: 'absolute', left: 40, top: 90, width: 790, height: 480, background: floorColor, borderRadius: 10 }} />
+        <div style={{ position: 'absolute', left: 40, top: 64, width: 790, height: 30, background: '#ece7db', borderRadius: 6, border: `1px solid ${C.panelBorder}` }} />
         {/* sofa glyph */}
-        <div style={{ position: 'absolute', left: 130, top: 300, width: 270, height: 120, background: '#34384a', borderRadius: 18, border: '3px solid #555c75' }}>
-          <div style={{ position: 'absolute', left: 12, top: -22, width: 240, height: 34, background: '#3e4358', borderRadius: 12 }} />
+        <div style={{ position: 'absolute', left: 130, top: 300, width: 270, height: 120, background: '#39405a', borderRadius: 18, boxShadow: '0 14px 30px rgba(27,29,36,0.3)' }}>
+          <div style={{ position: 'absolute', left: 12, top: -22, width: 240, height: 34, background: '#46506e', borderRadius: 12 }} />
         </div>
-        {/* stair glyph (rotates in phase 3) */}
+        {/* stair glyph */}
         <div
           style={{
             position: 'absolute',
@@ -79,23 +68,23 @@ export const EditScene: React.FC = () => {
                 left: 0,
                 width: 150,
                 height: 30,
-                background: `rgba(91,214,160,${0.25 + i * 0.1})`,
+                background: `rgba(47,158,107,${0.3 + i * 0.1})`,
                 border: `2px solid ${C.green}`,
                 borderRadius: 4,
               }}
             />
           ))}
         </div>
-        {/* structural pillar (deleted in phase 4) */}
+        {/* structural pillar */}
         {!pillarGone && (
           <svg style={{ position: 'absolute', left: 470, top: 440 }} width={64} height={64}>
-            <rect x={4} y={4} width={56} height={56} fill="rgba(214,71,158,0.2)" stroke={C.magenta} strokeWidth={3} />
+            <rect x={4} y={4} width={56} height={56} fill="rgba(194,67,143,0.14)" stroke={C.magenta} strokeWidth={3} />
             <line x1={4} y1={4} x2={60} y2={60} stroke={C.magenta} strokeWidth={3} />
             <line x1={4} y1={60} x2={60} y2={4} stroke={C.magenta} strokeWidth={3} />
           </svg>
         )}
         {pillarGone && (
-          <div style={{ position: 'absolute', left: 410, top: 455, padding: '8px 16px', borderRadius: 10, background: 'rgba(19,20,27,0.85)', color: C.green, fontSize: 20, fontWeight: 600 }}>
+          <div style={{ position: 'absolute', left: 400, top: 455, padding: '8px 16px', borderRadius: 10, background: '#ffffff', border: `1px solid ${C.panelBorder}`, boxShadow: '0 10px 26px rgba(27,29,36,0.12)', color: C.green, fontSize: 20, fontWeight: 600 }}>
             ✓ Pillar removed — ⌘Z to undo
           </div>
         )}
@@ -114,7 +103,7 @@ export const EditScene: React.FC = () => {
                   height: 74,
                   borderRadius: 12,
                   background: s,
-                  border: i === 0 && frame >= 70 ? `4px solid ${C.gold}` : `2px solid ${C.panelBorder}`,
+                  border: i === 0 && frame >= 70 ? `4px solid ${C.accent}` : `2px solid ${C.panelBorder}`,
                   transform: i === 0 && swatchClick > 0 && swatchClick < 1 ? 'scale(0.9)' : 'scale(1)',
                 }}
               />
@@ -133,8 +122,8 @@ export const EditScene: React.FC = () => {
                   borderRadius: 999,
                   fontSize: 22,
                   fontWeight: 600,
-                  background: packsActive && i === packIdx ? C.accent : 'rgba(255,255,255,0.05)',
-                  color: packsActive && i === packIdx ? '#fff' : C.textDim,
+                  background: packsActive && i === packIdx ? C.accent : C.bg,
+                  color: packsActive && i === packIdx ? '#fff' : C.inkDim,
                   border: `1px solid ${packsActive && i === packIdx ? C.accent : C.panelBorder}`,
                 }}
               >
@@ -146,13 +135,13 @@ export const EditScene: React.FC = () => {
 
         <div style={card}>
           <div style={cardTitle}>Staircase</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 20, color: C.text, fontSize: 22 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 20, color: C.ink, fontSize: 22 }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 44px)', gap: 6 }}>
               <span />
               <DPad>▲</DPad>
               <span />
               <DPad>◄</DPad>
-              <span style={{ textAlign: 'center', color: C.textFaint, lineHeight: '44px' }}>·</span>
+              <span style={{ textAlign: 'center', color: C.inkFaint, lineHeight: '44px' }}>·</span>
               <DPad>►</DPad>
               <span />
               <DPad>▼</DPad>
@@ -172,7 +161,7 @@ export const EditScene: React.FC = () => {
           style={{
             position: 'absolute',
             inset: 0,
-            background: 'rgba(0,0,0,0.45)',
+            background: 'rgba(27,29,36,0.30)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -181,34 +170,34 @@ export const EditScene: React.FC = () => {
         >
           <div
             style={{
-              width: 620,
-              background: C.bgPanel,
+              width: 640,
+              background: C.panel,
               border: `1px solid ${C.panelBorder}`,
               borderRadius: 18,
               padding: 34,
               transform: `scale(${0.9 + dialogIn * 0.1})`,
-              boxShadow: '0 30px 80px rgba(0,0,0,0.6)',
+              boxShadow: '0 40px 110px rgba(27,29,36,0.35)',
             }}
           >
-            <div style={{ display: 'flex', gap: 16 }}>
-              <span style={{ fontSize: 34, color: '#f2b84b' }}>⚠</span>
+            <div style={{ display: 'flex', gap: 18 }}>
+              <WarnIcon size={44} color={C.gold} />
               <div>
-                <div style={{ fontSize: 28, fontWeight: 700, color: C.text }}>Delete structural pillar?</div>
-                <div style={{ fontSize: 21, color: C.textDim, marginTop: 10, lineHeight: 1.45 }}>
+                <div style={{ fontSize: 28, fontWeight: 700, color: C.ink }}>Delete structural pillar?</div>
+                <div style={{ fontSize: 21, color: C.inkDim, marginTop: 10, lineHeight: 1.45 }}>
                   This is marked as a load-bearing column. Removing a real pillar can make the building unstable.
                 </div>
               </div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 14, marginTop: 26 }}>
-              <div style={{ padding: '12px 22px', borderRadius: 10, background: 'rgba(255,255,255,0.07)', color: C.text, fontSize: 21, fontWeight: 600 }}>
+              <div style={{ padding: '12px 22px', borderRadius: 10, background: C.bg, border: `1px solid ${C.panelBorder}`, color: C.ink, fontSize: 21, fontWeight: 600 }}>
                 Cancel
               </div>
               <div
                 style={{
                   padding: '12px 22px',
                   borderRadius: 10,
-                  background: '#8c2f39',
-                  color: '#ffd9dd',
+                  background: C.rose,
+                  color: '#ffffff',
                   fontSize: 21,
                   fontWeight: 700,
                   transform: dialogClick > 0 && dialogClick < 1 ? 'scale(0.93)' : 'scale(1)',
@@ -232,8 +221,9 @@ const DPad: React.FC<{ children: React.ReactNode }> = ({ children }) => (
       width: 44,
       height: 44,
       borderRadius: 8,
-      background: 'rgba(255,255,255,0.07)',
-      color: C.text,
+      background: C.bg,
+      border: `1px solid ${C.panelBorder}`,
+      color: C.ink,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -249,8 +239,9 @@ const Rot: React.FC<{ active: boolean; children: React.ReactNode }> = ({ active,
     style={{
       padding: '10px 16px',
       borderRadius: 8,
-      background: active ? C.accent : 'rgba(255,255,255,0.07)',
-      color: active ? '#fff' : C.text,
+      background: active ? C.accent : C.bg,
+      border: `1px solid ${active ? C.accent : C.panelBorder}`,
+      color: active ? '#fff' : C.ink,
       fontSize: 19,
       fontWeight: 600,
     }}

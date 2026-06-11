@@ -21,11 +21,12 @@ export const Caption: React.FC<{ text: string }> = ({ text }) => {
       <div
         style={{
           maxWidth: 1280,
-          padding: '14px 28px',
-          borderRadius: 14,
-          background: 'rgba(19,20,27,0.82)',
+          padding: '14px 30px',
+          borderRadius: 16,
+          background: 'rgba(255,255,255,0.92)',
           border: `1px solid ${C.panelBorder}`,
-          color: C.text,
+          boxShadow: '0 12px 40px rgba(27,29,36,0.10)',
+          color: C.ink,
           fontFamily: FONT,
           fontSize: 30,
           fontWeight: 500,

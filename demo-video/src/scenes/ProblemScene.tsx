@@ -18,9 +18,10 @@ export const ProblemScene: React.FC = () => {
         style={{
           transform: `translateY(${(1 - slide) * 320}px) rotate(${-3.2 + drift}deg)`,
           background: C.paper,
-          borderRadius: 6,
+          border: `1px solid ${C.panelBorder}`,
+          borderRadius: 8,
           padding: '54px 64px 40px',
-          boxShadow: '0 40px 90px rgba(0,0,0,0.6)',
+          boxShadow: '0 50px 110px rgba(27,29,36,0.22)',
         }}
       >
         <svg width={860} height={602} viewBox={`0 0 ${PLAN_W} ${PLAN_H}`}>

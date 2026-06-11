@@ -17,7 +17,7 @@ export const Cursor: React.FC<{ x: number; y: number; clickProgress?: number }> 
             width: 44 * clickProgress,
             height: 44 * clickProgress,
             borderRadius: '50%',
-            border: `3px solid ${C.gold}`,
+            border: `3px solid ${C.accent}`,
             opacity: 1 - clickProgress,
           }}
         />
@@ -30,9 +30,9 @@ export const Cursor: React.FC<{ x: number; y: number; clickProgress?: number }> 
           width: 18,
           height: 18,
           borderRadius: '50%',
-          background: '#ffffff',
-          border: `3px solid ${C.bg}`,
-          boxShadow: '0 2px 10px rgba(0,0,0,0.55)',
+          background: C.ink,
+          border: '3px solid #ffffff',
+          boxShadow: '0 2px 10px rgba(27,29,36,0.35)',
         }}
       />
     </div>

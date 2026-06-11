@@ -22,8 +22,9 @@ export const SCENES: SceneSpec[] = [
   { id: 'edit', minSeconds: 13 },
   { id: 'ai', minSeconds: 11 },
   { id: 'photo', minSeconds: 10 },
+  { id: 'audience', minSeconds: 12 },
   { id: 'privacy', minSeconds: 8 },
-  { id: 'outro', minSeconds: 6 },
+  { id: 'outro', minSeconds: 7 },
 ];
 
 export const NARRATION: Record<string, string> = narration;

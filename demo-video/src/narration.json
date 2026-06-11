@@ -1,11 +1,12 @@
 {
-  "title": "HomeCanvas AI turns your 2D floor plan into a 3D home you can walk through.",
-  "problem": "Your future home starts as a flat PDF. Lines and numbers. You squint and try to imagine your life inside.",
-  "trace": "Upload your plan. Set the scale from one known dimension. Then trace walls, rooms, doors, and windows with snap assist. Your 3D home builds live beside you as you draw.",
-  "canvas3d": "Now step inside. Orbit, walk in first person, or take a guided tour, room by room. Real light and soft shadows make it feel like a place.",
-  "edit": "Click any room. Make it yours. Swap floors and walls. 12 style packs, from Indian Modern to Rajasthani Heritage. Add furniture that fits. Move the stairs. Delete a pillar. The app warns about stability first.",
-  "ai": "Just ask. Type add a sofa to the lounge, or 3 variants of the master bedroom. The assistant shows a preview. Nothing changes until you approve. It even works offline.",
-  "photo": "Found a view you love? Open Photo Mode. A path tracer refines it sample by sample, until it looks almost like a photograph. Save it as a PNG.",
-  "privacy": "Everything runs on your computer. No accounts, no uploads, no paid APIs. Nothing leaves your machine. Your home stays your business.",
-  "outro": "HomeCanvas AI. Clone it, type npm run dev, and meet your future home."
+  "title": "Meet HomeCanvas AI. It turns your 2D floor plan into a 3D home you can walk through.",
+  "problem": "Every home starts as a PDF. Flat lines. Cold numbers. You can't feel a room from a drawing.",
+  "trace": "Upload your plan. Set the scale from one known wall. Now trace. Walls snap into place. Doors, windows, rooms. And watch. Your 3D home rises live beside you.",
+  "canvas3d": "Step inside. Orbit the house. Walk through it in first person. Take the guided tour, room by room. Real light pours in. Soft shadows fall. It feels like home.",
+  "edit": "Make it yours. Swap floors and walls. 12 style packs, Indian Modern to Fusion Japandi. Drop in furniture that never overlaps. Move and rotate the staircase. Delete a pillar? It warns you first.",
+  "ai": "Just ask. Add a sofa to the lounge. Give me 3 variants of the master bedroom. The assistant previews every change. Approve what you love. Undo anytime. All offline.",
+  "photo": "Now hit Photo Mode. Watch the path tracer sharpen your room, tile by tile, until it looks like a photograph. Save it as a PNG.",
+  "audience": "Homeowners and new buyers, walk your space before you commit. Architects and interior designers, pitch ideas clients can feel. Real estate developers, let buyers tour a home before the first brick is laid.",
+  "privacy": "Here's the best part. Everything runs on your machine. No accounts. No uploads. No paid APIs. Your home stays yours.",
+  "outro": "HomeCanvas AI. Your plan. Your home. Your machine. Want it? Drop an email to agrawalparth08@gmail.com and step inside."
 }

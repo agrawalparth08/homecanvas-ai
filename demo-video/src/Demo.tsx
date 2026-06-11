@@ -11,6 +11,7 @@ import { Canvas3DScene } from './scenes/Canvas3DScene';
 import { EditScene } from './scenes/EditScene';
 import { AIScene } from './scenes/AIScene';
 import { PhotoScene } from './scenes/PhotoScene';
+import { AudienceScene } from './scenes/AudienceScene';
 import { PrivacyScene } from './scenes/PrivacyScene';
 import { OutroScene } from './scenes/OutroScene';
 
@@ -22,6 +23,7 @@ const SCENE_COMPONENTS: Record<string, React.FC> = {
   edit: EditScene,
   ai: AIScene,
   photo: PhotoScene,
+  audience: AudienceScene,
   privacy: PrivacyScene,
   outro: OutroScene,
 };

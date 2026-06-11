@@ -2,7 +2,7 @@
 
 Turn a 2D residential floor plan into an **interactive, near-photoreal, editable 3D home** — explore materials, colors, furniture, and Indian-context design styles, move walls and stairs, then save and compare variants. **Local-first: your files never leave this machine.** No paid APIs anywhere.
 
-🎬 **[Watch the 90-second demo](docs/homecanvas-demo.mp4)** (narrated; built with Remotion + local TTS — see [`demo-video/`](demo-video/README.md))
+🎬 **[Watch the demo](docs/homecanvas-demo.mp4)** (narrated; built with Remotion — see [`demo-video/`](demo-video/README.md))
 
 ![Sample penthouse in the design canvas](docs/design-canvas.png)
 

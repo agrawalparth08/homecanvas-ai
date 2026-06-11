@@ -1,23 +1,41 @@
+import type { CSSProperties } from 'react';
 import { loadFont } from '@remotion/google-fonts/Inter';
 
 const { fontFamily } = loadFont();
 
-/** Sarvam-derived palette — matches the app (src/styles.css). */
+/**
+ * Sarvam-inspired LIGHT theme — matches the app's chrome (src/styles.css):
+ * cool light background, white panels, near-black navy ink, indigo accent,
+ * soft warm gradient washes. Classy, lots of air, thin-line iconography.
+ */
 export const C = {
-  bg: '#13141b', // dark navy stage
-  bgPanel: '#1b1d24',
-  panelBorder: '#2a2d37',
+  bg: '#eef0f4', // cool light chrome
+  bgWash: '#f7f6f2', // warm cream alternate
+  panel: '#ffffff',
+  panelBorder: '#e4e6ec',
+  ink: '#1b1d24', // primary text (near-black navy)
+  inkDim: '#646b78',
+  inkFaint: '#9aa0ac',
   accent: '#4b46e5', // indigo
-  accentSoft: 'rgba(75, 70, 229, 0.22)',
-  text: '#f3f4f7',
-  textDim: '#9aa0ac',
-  textFaint: '#646b78',
-  cyan: '#3ec7ff', // tracing walls
-  gold: '#d8a25a', // selection
-  magenta: '#d6479e', // structural pillars
-  green: '#5bd6a0', // stairs / success
-  paper: '#f6f4ee',
+  accentSoft: 'rgba(75, 70, 229, 0.10)',
+  gold: '#c08a3e', // muted brass (selection, doors)
+  magenta: '#c2438f', // structural pillars
+  green: '#2f9e6b', // success / stairs
+  sky: '#3f8fd2', // windows
+  rose: '#c2453f', // destructive
+  paper: '#fffdf8',
   planInk: '#5d6470',
+  /** Soft hero washes (mirrors the app's .hc-hero gradient pops). */
+  washIndigo: 'rgba(75, 70, 229, 0.07)',
+  washPeach: 'rgba(244, 178, 118, 0.10)',
 };
 
 export const FONT = `${fontFamily}, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`;
+
+/** Standard white card. */
+export const CARD: CSSProperties = {
+  background: C.panel,
+  border: `1px solid ${C.panelBorder}`,
+  borderRadius: 18,
+  boxShadow: '0 18px 50px rgba(27, 29, 36, 0.08)',
+};

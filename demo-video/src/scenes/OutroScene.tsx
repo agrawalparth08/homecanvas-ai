@@ -1,9 +1,8 @@
 import React from 'react';
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import { C, FONT, SPRING } from '../theme';
-import { MailIcon } from '../components/Icons';
 
-const EMAIL = 'agrawalparth08@gmail.com';
+const URL = 'tryhomecanvas.com';
 
 export const OutroScene: React.FC = () => {
   const frame = useCurrentFrame();
@@ -39,25 +38,33 @@ export const OutroScene: React.FC = () => {
 
         <div
           style={{
-            margin: '60px auto 0',
+            margin: '56px auto 0',
             display: 'inline-flex',
+            flexDirection: 'column',
             alignItems: 'center',
-            gap: 22,
-            padding: '26px 44px',
-            borderRadius: 18,
-            background: C.panel,
-            border: `2px solid ${C.accent}`,
-            boxShadow: '0 30px 80px rgba(75,70,229,0.22)',
+            gap: 16,
             transform: `translateY(${(1 - cardIn) * 50}px)`,
             opacity: cardIn,
           }}
         >
-          <div style={{ width: 72, height: 72, borderRadius: 16, background: C.accentSoft, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <MailIcon size={44} color={C.accent} />
+          <div style={{ fontSize: 24, color: C.inkDim, fontWeight: 500, letterSpacing: 0.3, textTransform: 'uppercase' }}>
+            Get early access
           </div>
-          <div style={{ textAlign: 'left' }}>
-            <div style={{ fontSize: 24, color: C.inkDim, fontWeight: 500 }}>Want it for your home or your clients?</div>
-            <div style={{ fontSize: 40, fontWeight: 700, color: C.ink, marginTop: 4 }}>{EMAIL}</div>
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 16,
+              padding: '22px 40px',
+              borderRadius: 16,
+              background: C.accent,
+              boxShadow: '0 24px 60px -16px rgba(75,70,229,0.6)',
+            }}
+          >
+            <span style={{ fontSize: 44, fontWeight: 700, color: '#fff', letterSpacing: -0.5 }}>{URL}</span>
+            <svg width={40} height={40} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12h13m-5-5 5 5-5 5" />
+            </svg>
           </div>
         </div>
       </div>

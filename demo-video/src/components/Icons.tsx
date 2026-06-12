@@ -98,3 +98,53 @@ export const CheckIcon: React.FC<{ size?: number; color?: string }> = ({ size = 
     <path d="m5 12.5 4.5 4.5L19 7.5" />
   </Base>
 );
+
+export const PaletteIcon: React.FC<{ size?: number; color?: string }> = ({ size = 40, color = 'currentColor' }) => (
+  <Base size={size} color={color}>
+    <path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.3 0 1.8-1 1.4-1.9-.5-1.1.3-2.1 1.5-2.1H17a3.5 3.5 0 0 0 3.5-3.5C20.5 7 16.7 3.5 12 3.5Z" />
+    <circle cx={8} cy={11} r={0.6} fill={color} />
+    <circle cx={12} cy={8} r={0.6} fill={color} />
+    <circle cx={16} cy={11} r={0.6} fill={color} />
+  </Base>
+);
+
+export const SparkleIcon: React.FC<{ size?: number; color?: string }> = ({ size = 40, color = 'currentColor' }) => (
+  <Base size={size} color={color}>
+    <path d="M12 4c.6 3.2 1.8 4.4 5 5-3.2.6-4.4 1.8-5 5-.6-3.2-1.8-4.4-5-5 3.2-.6 4.4-1.8 5-5Z" />
+    <path d="M18.5 14.5c.3 1.4.8 1.9 2.2 2.2-1.4.3-1.9.8-2.2 2.2-.3-1.4-.8-1.9-2.2-2.2 1.4-.3 1.9-.8 2.2-2.2Z" />
+  </Base>
+);
+
+export const SliderIcon: React.FC<{ size?: number; color?: string }> = ({ size = 40, color = 'currentColor' }) => (
+  <Base size={size} color={color}>
+    <rect x={3.5} y={5.5} width={17} height={13} rx={2} />
+    <path d="M12 5.5v13" />
+    <circle cx={12} cy={12} r={2.1} fill="none" />
+  </Base>
+);
+
+export const CameraIcon: React.FC<{ size?: number; color?: string }> = ({ size = 40, color = 'currentColor' }) => (
+  <Base size={size} color={color}>
+    <path d="M4 8.5a2 2 0 0 1 2-2h1.5l1.2-1.8h6.6L18.5 6.5H20a2 2 0 0 1 2 2v8.5a2 2 0 0 1-2 2H4Z" transform="translate(-1 0)" />
+    <circle cx={11.5} cy={12.5} r={3} />
+  </Base>
+);
+
+export const LockIcon: React.FC<{ size?: number; color?: string }> = ({ size = 40, color = 'currentColor' }) => (
+  <Base size={size} color={color}>
+    <rect x={5.5} y={11} width={13} height={9} rx={2} />
+    <path d="M8.5 11V8a3.5 3.5 0 0 1 7 0v3" />
+  </Base>
+);
+
+export const ArrowRightIcon: React.FC<{ size?: number; color?: string }> = ({ size = 40, color = 'currentColor' }) => (
+  <Base size={size} color={color}>
+    <path d="M5 12h13m-5-5 5 5-5 5" />
+  </Base>
+);
+
+export const CursorIcon: React.FC<{ size?: number; color?: string }> = ({ size = 40, color = 'currentColor' }) => (
+  <Base size={size} color={color}>
+    <path d="M5.5 3.5 19 11l-6 1.6L9.5 19Z" />
+  </Base>
+);

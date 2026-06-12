@@ -26,7 +26,7 @@ const SAY_VOICE = process.env.DEMO_VOICE ?? 'Samantha';
 
 /** Spoken variants where the literal caption would be mispronounced. */
 const TTS_OVERRIDES = {
-  outro: (caption) => caption.replace('agrawalparth08@gmail.com', 'agrawal parth zero eight, at gmail dot com'),
+  outro: (caption) => caption.replace('tryhomecanvas.com', 'try home canvas dot com'),
 };
 
 const outDir = path.join(root, 'public', 'narration');

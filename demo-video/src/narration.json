@@ -1,12 +1,10 @@
 {
-  "title": "Meet HomeCanvas AI. It turns your 2D floor plan into a 3D home you can walk through.",
-  "problem": "Every home starts as a PDF. Flat lines. Cold numbers. You can't feel a room from a drawing.",
-  "trace": "Upload your plan. Set the scale from one known wall. Now trace. Walls snap into place. Doors, windows, rooms. And watch. Your 3D home rises live beside you.",
-  "canvas3d": "Step inside. Orbit the house. Walk through it in first person. Take the guided tour, room by room. Real light pours in. Soft shadows fall. It feels like home.",
-  "edit": "Make it yours. Swap floors and walls. 12 style packs, Indian Modern to Fusion Japandi. Drop in furniture that never overlaps. Move and rotate the staircase. Delete a pillar? It warns you first.",
-  "ai": "Just ask. Add a sofa to the lounge. Give me 3 variants of the master bedroom. The assistant previews every change. Approve what you love. Undo anytime. All offline.",
-  "photo": "Now hit Photo Mode. Watch the path tracer sharpen your room, tile by tile, until it looks like a photograph. Save it as a PNG.",
-  "audience": "Homeowners and new buyers, walk your space before you commit. Architects and interior designers, pitch ideas clients can feel. Real estate developers, let buyers tour a home before the first brick is laid.",
-  "privacy": "Here's the best part. Everything runs on your machine. No accounts. No uploads. No paid APIs. Your home stays yours.",
-  "outro": "HomeCanvas AI. Your plan. Your home. Your machine. Want it? Drop an email to agrawalparth08@gmail.com and step inside."
+  "title": "HomeCanvas AI turns your 2D floor plan into a 3D home you can walk through.",
+  "trace": "Upload your plan, set the scale, and trace the walls. Your 3D home rises live as you draw.",
+  "canvas3d": "Step inside. Orbit it. Walk it in first person. Or take the guided tour. Real light, real shadows.",
+  "edit": "Make it yours. Swap materials. Twelve style packs. Add furniture. Move the stairs. Delete a pillar? It warns you first.",
+  "ai": "Or just ask. Add a sofa to the lounge. Preview, approve, undo. All offline.",
+  "photo": "Then hit Photo Mode. A path tracer refines your room into a near photoreal still. Save it.",
+  "audience": "For homeowners, architects, interior designers, and developers. Show anyone a home they can feel, before it is built.",
+  "outro": "Local-first. No uploads. No paid APIs. Want it? Email agrawalparth08@gmail.com."
 }

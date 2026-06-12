@@ -2,6 +2,7 @@ import React from 'react';
 import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { C, FONT } from '../theme';
 import { DollHouse3D } from '../components/DollHouse3D';
+import { CaptureMedia, pickCapture } from '../captures';
 
 const MAX_SAMPLES = 400;
 const COLS = 10;
@@ -37,9 +38,19 @@ export const PhotoScene: React.FC = () => {
   const converged = samples >= MAX_SAMPLES;
   const savePulse = converged ? 1 + Math.sin(frame / 5) * 0.04 : 1;
 
+  // A real Photo Mode render from the app (penthouse build): the tiles resolve
+  // over your actual path-traced still/clip instead of the synthetic dollhouse.
+  const real = pickCapture('photoreal', 'photorealclip', 'photorealstill', 'hero');
+
   return (
     <AbsoluteFill style={{ fontFamily: FONT }}>
-      <DollHouse3D azimuth={azimuth} tilt={57} zoom={zoom} quality="clean" />
+      {real ? (
+        <AbsoluteFill style={{ background: '#000' }}>
+          <CaptureMedia capture={real} style={real.kind === 'image' ? { transform: `scale(${zoom})` } : {}} />
+        </AbsoluteFill>
+      ) : (
+        <DollHouse3D azimuth={azimuth} tilt={57} zoom={zoom} quality="clean" />
+      )}
 
       {/* unresolved tiles: noisy + blurred until the "tracer" reaches them */}
       <AbsoluteFill style={{ display: 'grid', gridTemplateColumns: `repeat(${COLS}, 1fr)`, gridTemplateRows: `repeat(${ROWS}, 1fr)` }}>

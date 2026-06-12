@@ -2,6 +2,7 @@ import React from 'react';
 import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { C, FONT } from '../theme';
 import { DollHouse3D } from '../components/DollHouse3D';
+import { CaptureMedia, pickCapture } from '../captures';
 
 const MODES = ['Orbit', 'Top', 'Walk', 'Tour'];
 
@@ -24,9 +25,18 @@ export const Canvas3DScene: React.FC = () => {
 
   const active = Math.min(MODES.length - 1, Math.floor((frame / durationInFrames) * MODES.length));
 
+  // Real screen-grab from the app's 3D canvas (penthouse build), if captured.
+  const clip = pickCapture('walkthrough', 'walk', 'orbit', 'tour');
+
   return (
     <AbsoluteFill style={{ fontFamily: FONT }}>
-      <DollHouse3D azimuth={azimuth} tilt={tilt} zoom={zoom} quality="clean" />
+      {clip ? (
+        <AbsoluteFill style={{ background: '#000' }}>
+          <CaptureMedia capture={clip} />
+        </AbsoluteFill>
+      ) : (
+        <DollHouse3D azimuth={azimuth} tilt={tilt} zoom={zoom} quality="clean" />
+      )}
 
       {/* soft edge falloff into the light chrome */}
       <AbsoluteFill style={{ background: 'radial-gradient(ellipse at center, transparent 58%, rgba(238,240,244,0.8) 100%)' }} />

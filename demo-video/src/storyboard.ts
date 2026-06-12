@@ -4,9 +4,9 @@ import durations from './durations.json';
 export const FPS = 30;
 
 /** Frames of silence before the narration starts inside each scene. */
-export const LEAD_IN_FRAMES = 14;
+export const LEAD_IN_FRAMES = 12;
 /** Frames of air after the narration ends. */
-export const TAIL_FRAMES = 20;
+export const TAIL_FRAMES = 14;
 
 export interface SceneSpec {
   id: keyof typeof narration;
@@ -14,17 +14,17 @@ export interface SceneSpec {
   minSeconds: number;
 }
 
+// Tight <60s cut: dropped the standalone "problem" + "privacy" scenes (privacy
+// folds into the outro line). 8 scenes.
 export const SCENES: SceneSpec[] = [
-  { id: 'title', minSeconds: 6 },
-  { id: 'problem', minSeconds: 8 },
-  { id: 'trace', minSeconds: 11 },
-  { id: 'canvas3d', minSeconds: 10 },
-  { id: 'edit', minSeconds: 13 },
-  { id: 'ai', minSeconds: 11 },
-  { id: 'photo', minSeconds: 10 },
-  { id: 'audience', minSeconds: 12 },
-  { id: 'privacy', minSeconds: 8 },
-  { id: 'outro', minSeconds: 7 },
+  { id: 'title', minSeconds: 5 },
+  { id: 'trace', minSeconds: 8 },
+  { id: 'canvas3d', minSeconds: 8 },
+  { id: 'edit', minSeconds: 9 },
+  { id: 'ai', minSeconds: 7 },
+  { id: 'photo', minSeconds: 8 },
+  { id: 'audience', minSeconds: 9 },
+  { id: 'outro', minSeconds: 6 },
 ];
 
 export const NARRATION: Record<string, string> = narration;

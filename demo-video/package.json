@@ -5,8 +5,10 @@
   "description": "Storyboard-driven product demo video for HomeCanvas AI (Remotion + local macOS TTS)",
   "scripts": {
     "narration": "node scripts/generate-narration.mjs",
+    "captures": "node scripts/scan-captures.mjs",
     "studio": "remotion studio src/index.ts",
     "render": "remotion render src/index.ts HomeCanvasDemo out/homecanvas-demo.mp4 --codec=h264",
+    "render:penthouse": "node scripts/scan-captures.mjs && remotion render src/index.ts HomeCanvasDemo out/homecanvas-penthouse.mp4 --codec=h264",
     "still": "remotion still src/index.ts HomeCanvasDemo"
   },
   "dependencies": {

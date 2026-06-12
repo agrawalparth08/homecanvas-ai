@@ -13,6 +13,9 @@
 
 # demo video: build artifacts stay local (final MP4 is committed under docs/)
 /demo-video/out/
+# real penthouse screen-grabs + the penthouse cut never leave the machine
+/demo-video/public/captures/
+/demo-video/**/homecanvas-penthouse.mp4
 
 node_modules/
 dist/

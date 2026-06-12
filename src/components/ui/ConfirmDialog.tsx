@@ -1,4 +1,6 @@
 import { useEffect } from 'react';
+import { Button } from './Button';
+import { Icon } from './Icon';
 
 interface Props {
   open: boolean;
@@ -13,11 +15,10 @@ interface Props {
 }
 
 /**
- * Small modal confirmation. Used for destructive actions that need an explicit
- * yes/no (e.g. deleting a structural pillar). Esc or a backdrop click cancels.
- * The CANCEL button is focused by default (deliberate for a destructive action):
- * a stray Enter/Space cancels rather than confirming, so confirming a delete
- * always takes a real click.
+ * Modal confirmation for destructive actions (e.g. deleting a structural pillar).
+ * Esc or a backdrop click cancels. Cancel is focused by default — a stray
+ * Enter/Space cancels rather than confirming, so confirming a delete always
+ * takes a deliberate click.
  */
 export function ConfirmDialog({
   open,
@@ -44,7 +45,7 @@ export function ConfirmDialog({
   if (!open) return null;
   return (
     <div
-      className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/55 p-4"
+      className="fixed inset-0 z-[1100] flex items-center justify-center bg-neutral-50/40 p-4 backdrop-blur-[2px]"
       onPointerDown={onCancel}
       role="presentation"
     >
@@ -52,34 +53,35 @@ export function ConfirmDialog({
         role="alertdialog"
         aria-modal="true"
         aria-label={title}
-        className="w-full max-w-sm rounded-xl border border-panel-border bg-panel p-5 shadow-2xl"
+        className="w-full max-w-md rounded-xl border border-panel-border bg-panel p-6 shadow-2xl"
         onPointerDown={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start gap-3">
-          <span className="mt-0.5 text-xl leading-none text-amber-400">⚠</span>
-          <div className="min-w-0">
-            <h2 className="text-sm font-semibold text-neutral-100">{title}</h2>
-            <p className="mt-1.5 text-xs leading-relaxed text-neutral-300">{message}</p>
-          </div>
-        </div>
-        <div className="mt-4 flex justify-end gap-2">
-          <button
-            autoFocus
-            onClick={onCancel}
-            className="rounded bg-neutral-800 px-3 py-1.5 text-xs text-neutral-200 hover:bg-neutral-700"
-          >
-            {cancelLabel}
-          </button>
-          <button
-            onClick={onConfirm}
-            className={`rounded px-3 py-1.5 text-xs font-medium ${
-              danger
-                ? 'bg-red-900/80 text-red-100 hover:bg-red-800'
-                : 'bg-accent/25 text-accent hover:bg-accent/35'
+        <div className="flex gap-4">
+          <span
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[22px] ${
+              danger ? 'bg-rose-50 text-rose-600' : 'bg-accent/10 text-accent'
             }`}
           >
+            <Icon name="warning" strokeWidth={1.8} />
+          </span>
+          <div className="min-w-0 pt-0.5">
+            <h2 className="text-[15px] font-semibold text-neutral-100">{title}</h2>
+            <p className="mt-2 text-[13px] leading-relaxed text-neutral-400">{message}</p>
+          </div>
+        </div>
+        <div className="mt-6 flex justify-end gap-2.5">
+          <Button autoFocus variant="secondary" size="sm" onClick={onCancel}>
+            {cancelLabel}
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={onConfirm}
+            {...(danger ? { icon: 'trash' as const } : {})}
+            className={danger ? 'bg-rose-600 shadow-rose-600/25 hover:bg-rose-700 active:bg-rose-800' : ''}
+          >
             {confirmLabel}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

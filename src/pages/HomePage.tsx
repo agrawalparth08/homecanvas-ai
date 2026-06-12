@@ -48,13 +48,27 @@ export function HomePage() {
             </span>
             <h2 className="mt-3 font-semibold">My Home</h2>
             {manifest && manifest.files.length > 0 ? (
-              <p className="mt-1 text-sm text-neutral-400">
-                {manifest.files.length} private file(s) detected
-                {manifest.hasFloorPlan ? ' · floor plan ✓' : ''}
-                {manifest.hasSitePhotos ? ' · site photos ✓' : ''}
-                {manifest.hasCad ? ' · CAD ✓' : ''}
-                {manifest.hasGeneratedScene || manifest.hasManualScene ? ' · scene ready ✓' : ' · no scene yet'}
-              </p>
+              <div className="mt-2">
+                <p className="text-sm text-neutral-400">{manifest.files.length} private file(s) detected</p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {[
+                    ['floor plan', manifest.hasFloorPlan],
+                    ['site photos', manifest.hasSitePhotos],
+                    ['CAD', manifest.hasCad],
+                    ['scene ready', manifest.hasGeneratedScene || manifest.hasManualScene],
+                  ].map(([label, ok]) => (
+                    <span
+                      key={label as string}
+                      className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium ${
+                        ok ? 'bg-emerald-50 text-emerald-700' : 'bg-neutral-800 text-neutral-500'
+                      }`}
+                    >
+                      {ok && <Icon name="check" />}
+                      {label as string}
+                    </span>
+                  ))}
+                </div>
+              </div>
             ) : (
               <p className="mt-1 text-sm text-neutral-400">
                 No private files yet. Run <code className="text-xs">npm run init:private</code> and drop your floor

@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 import { computeTourStops } from '@lib/tour';
 import { useEditor } from '../../store/editor-store';
+import { Button } from '../ui/Button';
+import { Icon } from '../ui/Icon';
 
 /** Overlay shown during the guided POV tour. */
 export function TourPanel() {
@@ -23,47 +25,36 @@ export function TourPanel() {
 
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-6 z-20 flex justify-center">
-      <div className="pointer-events-auto w-[min(640px,92vw)] rounded-2xl border border-panel-border bg-neutral-900/92 px-5 py-4 shadow-2xl backdrop-blur">
+      <div className="pointer-events-auto w-[min(640px,92vw)] rounded-xl border border-panel-border bg-panel/95 px-5 py-4 shadow-xl backdrop-blur">
         <div className="flex items-center justify-between">
-          <div className="text-xs uppercase tracking-wide text-accent">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-accent">
             Stop {i + 1} / {stops.length}
           </div>
-          <button onClick={exit} className="text-xs text-neutral-400 hover:text-neutral-200">
-            Exit tour ✕
+          <button onClick={exit} className="inline-flex items-center gap-1 text-xs text-neutral-400 hover:text-neutral-100">
+            Exit tour <Icon name="close" />
           </button>
         </div>
-        <div className="mt-1 text-lg font-semibold text-neutral-50">{stop.name}</div>
+        <div className="mt-1.5 text-lg font-semibold text-neutral-100">{stop.name}</div>
         <div className="text-sm text-neutral-400">{stop.caption}</div>
 
-        <div className="mt-3 flex items-center gap-2">
-          <button
-            onClick={prev}
-            disabled={i === 0}
-            className="rounded-lg bg-neutral-800 px-3 py-1.5 text-sm text-neutral-200 enabled:hover:bg-neutral-700 disabled:opacity-40"
-          >
-            ‹ Back
-          </button>
-          <button
-            onClick={togglePlay}
-            className="rounded-lg bg-accent/25 px-3 py-1.5 text-sm text-accent hover:bg-accent/35"
-          >
-            {playing ? '⏸ Pause' : '▶ Play tour'}
-          </button>
-          <button
-            onClick={next}
-            disabled={i >= stops.length - 1}
-            className="rounded-lg bg-neutral-800 px-3 py-1.5 text-sm text-neutral-200 enabled:hover:bg-neutral-700 disabled:opacity-40"
-          >
-            Next ›
-          </button>
+        <div className="mt-4 flex items-center gap-2">
+          <Button variant="secondary" size="sm" icon="chevronLeft" onClick={prev} disabled={i === 0}>
+            Back
+          </Button>
+          <Button variant="primary" size="sm" icon={playing ? 'columns' : 'play'} onClick={togglePlay}>
+            {playing ? 'Pause' : 'Play tour'}
+          </Button>
+          <Button variant="secondary" size="sm" iconRight="chevronRight" onClick={next} disabled={i >= stops.length - 1}>
+            Next
+          </Button>
 
-          <div className="ml-auto flex flex-wrap justify-end gap-1">
+          <div className="ml-auto flex flex-wrap justify-end gap-1.5">
             {stops.map((s, idx) => (
               <button
                 key={s.roomId}
                 onClick={() => useEditor.getState().setTourIndex(idx)}
                 title={s.name}
-                className={`h-2.5 w-2.5 rounded-full ${idx === i ? 'bg-accent' : 'bg-neutral-600 hover:bg-neutral-400'}`}
+                className={`h-2 rounded-full transition-all ${idx === i ? 'w-5 bg-accent' : 'w-2 bg-neutral-700 hover:bg-neutral-600'}`}
               />
             ))}
           </div>

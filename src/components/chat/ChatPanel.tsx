@@ -7,6 +7,7 @@ import type { AgentEditProposal } from '@lib/agent/provider';
 import { checkBridgeEnabled, runBridge, type BridgeRunResult } from '../../agent/claude-bridge-provider';
 import { fileToDataUrl, imageToPaletteInput } from '../../agent/image-palette';
 import { uploadPrivateFile } from '../../api';
+import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { useEditor } from '../../store/editor-store';
 
@@ -196,7 +197,7 @@ export function ChatPanel() {
               <button
                 key={pv}
                 onClick={() => setProvider(pv)}
-                className={`px-2 py-0.5 ${provider === pv ? 'bg-accent/20 text-accent' : 'text-neutral-500 hover:text-neutral-300'}`}
+                className={`px-2.5 py-1 font-medium ${provider === pv ? 'bg-accent text-white' : 'text-neutral-500 hover:text-neutral-300'}`}
               >
                 {pv === 'mock' ? 'Built-in' : 'Claude bridge'}
               </button>
@@ -210,7 +211,7 @@ export function ChatPanel() {
             {m.image && (
               <img src={m.image} alt="reference" className="mb-1 inline-block max-h-28 rounded-lg border border-panel-border object-cover" />
             )}
-            <div className={`inline-block max-w-[15rem] rounded-2xl px-3 py-1.5 text-[13px] leading-snug ${m.role === 'user' ? 'bg-accent/15 text-neutral-100' : 'bg-neutral-800 text-neutral-200'}`}>
+            <div className={`inline-block max-w-[15rem] rounded-lg px-3 py-1.5 text-[13px] leading-snug ${m.role === 'user' ? 'bg-accent text-white' : 'bg-neutral-800 text-neutral-200'}`}>
               {m.text}
             </div>
             {m.palette && (
@@ -222,19 +223,24 @@ export function ChatPanel() {
             )}
             {m.proposal && !m.done && (
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                <button onClick={() => decide(i, true)} className="rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-neutral-950 hover:opacity-90">Apply</button>
-                <button onClick={() => decide(i, false)} className="rounded-md bg-neutral-800 px-2.5 py-1 text-xs text-neutral-300 hover:bg-neutral-700">Dismiss</button>
+                <Button variant="primary" size="sm" icon="check" onClick={() => decide(i, true)}>Apply</Button>
+                <Button variant="secondary" size="sm" onClick={() => decide(i, false)}>Dismiss</Button>
                 {m.proposal.skippedLocked.length > 0 && <span className="text-[10px] text-amber-600">{m.proposal.skippedLocked.length} locked skipped</span>}
               </div>
             )}
-            {m.done && <div className="mt-0.5 text-[11px] text-neutral-500">{m.done === 'applied' ? '✓ applied' : m.done === 'rejected' ? 'rejected by validator' : 'dismissed'}</div>}
+            {m.done && (
+              <div className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-neutral-500">
+                {m.done === 'applied' && <Icon name="check" className="text-emerald-600" />}
+                {m.done === 'applied' ? 'applied' : m.done === 'rejected' ? 'rejected by validator' : 'dismissed'}
+              </div>
+            )}
           </div>
         ))}
         {busy && <div className="text-[11px] text-neutral-500">thinking…</div>}
         {msgs.length <= 1 && (
           <div className="flex flex-wrap gap-1.5 pt-1">
             {SUGGESTIONS.map((s) => (
-              <button key={s} onClick={() => void send(s)} className="rounded-full border border-panel-border bg-neutral-900 px-2.5 py-1 text-[11px] text-neutral-400 hover:border-accent/50 hover:text-neutral-200">{s}</button>
+              <button key={s} onClick={() => void send(s)} className="rounded-lg border border-panel-border bg-panel px-2.5 py-1 text-[11px] text-neutral-400 transition-colors hover:border-accent/50 hover:text-neutral-200">{s}</button>
             ))}
           </div>
         )}

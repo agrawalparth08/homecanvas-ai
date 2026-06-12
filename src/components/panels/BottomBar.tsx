@@ -1,14 +1,32 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchVariants } from '../../api';
-import { Icon } from '../ui/Icon';
+import { Button } from '../ui/Button';
+import { Icon, type IconName } from '../ui/Icon';
 import { useEditor, type ViewMode } from '../../store/editor-store';
 
-const VIEW_MODES: { id: ViewMode; label: string }[] = [
-  { id: 'orbit', label: 'Orbit' },
-  { id: 'top', label: 'Top-down' },
-  { id: 'walk', label: 'Walk' },
+const VIEW_MODES: { id: ViewMode; label: string; icon: IconName }[] = [
+  { id: 'orbit', label: 'Orbit', icon: 'orbit' },
+  { id: 'top', label: 'Top', icon: 'columns' },
+  { id: 'walk', label: 'Walk', icon: 'walk' },
 ];
+
+/** One button inside a segmented control: active = solid accent, else quiet. */
+function Seg({ active, onClick, children, title }: { active: boolean; onClick: () => void; children: React.ReactNode; title?: string }) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className={`inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors ${
+        active ? 'bg-accent text-white shadow-sm shadow-accent/25' : 'text-neutral-400 hover:bg-panel hover:text-neutral-100'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+const SEG_GROUP = 'flex gap-0.5 rounded-lg border border-panel-border bg-neutral-900 p-0.5';
 
 export function BottomBar() {
   const projectId = useEditor((s) => s.projectId);
@@ -61,95 +79,78 @@ export function BottomBar() {
     void queryClient.invalidateQueries({ queryKey: ['variants', projectId] });
   };
 
-  const button = 'inline-flex items-center gap-1 rounded px-2.5 py-1.5 text-xs text-neutral-200 bg-neutral-800 enabled:hover:bg-neutral-700 disabled:opacity-40';
-
   return (
-    <div className="flex items-center gap-3 border-t border-panel-border bg-panel px-3 py-2">
-      <div className="flex gap-1.5">
-        <button className={button} disabled={undoCount === 0} onClick={undo} title="Undo (validated replay)">
-          <Icon name="undo" /> Undo
-        </button>
-        <button className={button} disabled={redoCount === 0} onClick={redo}>
-          <Icon name="redo" /> Redo
-        </button>
+    <div className="flex items-center gap-2.5 border-t border-panel-border bg-panel px-3 py-2">
+      <div className="flex gap-1">
+        <Button variant="ghost" size="sm" icon="undo" disabled={undoCount === 0} onClick={undo} title="Undo (⌘Z)">
+          Undo
+        </Button>
+        <Button variant="ghost" size="sm" icon="redo" disabled={redoCount === 0} onClick={redo} title="Redo (⇧⌘Z)">
+          Redo
+        </Button>
       </div>
 
-      <div className="h-5 w-px bg-panel-border" />
+      {scene && scene.floors.length > 1 && (
+        <div className={SEG_GROUP}>
+          {scene.floors.map((floor) => (
+            <Seg key={floor.id} active={activeFloorId === floor.id} onClick={() => setActiveFloor(floor.id)}>
+              {floor.name}
+            </Seg>
+          ))}
+        </div>
+      )}
 
-      <div className="flex gap-1.5">
-        {scene?.floors.map((floor) => (
-          <button
-            key={floor.id}
-            className={`rounded px-2.5 py-1.5 text-xs ${
-              activeFloorId === floor.id ? 'bg-accent/25 text-accent' : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700'
-            }`}
-            onClick={() => setActiveFloor(floor.id)}
-          >
-            {floor.name}
-          </button>
-        ))}
-      </div>
-
-      <div className="h-5 w-px bg-panel-border" />
-
-      <div className="flex gap-1.5">
+      <div className={SEG_GROUP}>
         {VIEW_MODES.map((mode) => (
-          <button
-            key={mode.id}
-            className={`rounded px-2.5 py-1.5 text-xs ${
-              viewMode === mode.id ? 'bg-accent/25 text-accent' : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700'
-            }`}
-            onClick={() => setViewMode(mode.id)}
-          >
-            {mode.label}
-          </button>
+          <Seg key={mode.id} active={viewMode === mode.id} onClick={() => setViewMode(mode.id)}>
+            <Icon name={mode.icon} /> {mode.label}
+          </Seg>
         ))}
-        {viewMode === 'walk' && (
-          <button id="walk-start" className="rounded bg-accent/30 px-2.5 py-1.5 text-xs text-accent">
-            Click to walk (Esc exits)
-          </button>
-        )}
-        <button
-          className={`inline-flex items-center gap-1 rounded px-2.5 py-1.5 text-xs ${viewMode === 'tour' ? 'bg-accent/25 text-accent' : 'bg-accent/15 text-accent hover:bg-accent/25'}`}
-          onClick={startTour}
-          title="Guided walkthrough from the entrance through each room"
-        >
+        <Seg active={viewMode === 'tour'} onClick={startTour} title="Guided walkthrough through each room">
           <Icon name="play" /> Tour
-        </button>
+        </Seg>
       </div>
+      {viewMode === 'walk' && (
+        <span id="walk-start" className="rounded-md bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent">
+          Click to walk · Esc exits
+        </span>
+      )}
 
       <div className="ml-auto flex items-center gap-1.5">
-        <button
-          className={button}
-          onClick={() => void onSavePhoto()}
-          disabled={!canShoot || shooting}
-          title="Export a PNG of the current view"
-        >
-          <Icon name="image" /> {shooting ? 'Saving…' : 'Save photo'}
-        </button>
-        <button
-          className="inline-flex items-center gap-1 rounded px-2.5 py-1.5 text-xs text-accent bg-accent/15 hover:bg-accent/25"
-          onClick={() => setPhotoMode(true)}
-          title="Photoreal path-traced render (GPU)"
-        >
-          <Icon name="sparkles" /> Photoreal
-        </button>
-        <button
-          className={`inline-flex items-center gap-1 rounded px-2.5 py-1.5 text-xs ${showBefore ? 'bg-accent/25 text-accent' : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700'}`}
+        <Button variant="secondary" size="sm" icon="camera" onClick={() => void onSavePhoto()} disabled={!canShoot || shooting} title="Export a PNG of the current view">
+          {shooting ? 'Saving…' : 'Photo'}
+        </Button>
+        <Button variant="primary" size="sm" icon="sparkles" onClick={() => setPhotoMode(true)} title="Photoreal path-traced render (GPU)">
+          Photoreal
+        </Button>
+
+        <span className="mx-0.5 h-5 w-px bg-panel-border" />
+
+        <Button
+          variant="secondary"
+          size="sm"
+          icon="compare"
           onClick={() => setShowBefore(!showBefore)}
           title="Compare with the scene as loaded"
+          className={showBefore ? 'border-accent bg-accent text-white hover:bg-[#403bd6]' : ''}
         >
-          <Icon name="compare" /> {showBefore ? 'Showing: Before' : 'Before/After'}
-        </button>
-        <button
-          className={`inline-flex items-center gap-1 rounded px-2.5 py-1.5 text-xs ${compareMode === 'slider' ? 'bg-accent/25 text-accent' : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700'}`}
+          {showBefore ? 'Before' : 'Before/After'}
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          icon="columns"
           onClick={() => setCompareMode(compareMode === 'slider' ? 'off' : 'slider')}
-          title="Drag a slider to wipe between the loaded baseline and your edits"
+          title="Drag a slider to wipe between the baseline and your edits"
+          className={compareMode === 'slider' ? 'border-accent bg-accent text-white hover:bg-[#403bd6]' : ''}
         >
-          <Icon name="columns" /> Slider
-        </button>
+          Slider
+        </Button>
+
+        <span className="mx-0.5 h-5 w-px bg-panel-border" />
+
         <select
-          className="rounded border border-panel-border bg-neutral-900 px-2 py-1.5 text-xs text-neutral-200"
+          className="h-8 rounded-lg border border-panel-border bg-panel px-2.5 text-xs text-neutral-200 focus:border-accent focus:outline-none"
           value={activeVariantId ?? ''}
           onChange={(e) => e.target.value && void loadVariant(e.target.value)}
         >
@@ -160,21 +161,23 @@ export function BottomBar() {
             </option>
           ))}
         </select>
-        <button className={button} onClick={() => void onSave()} disabled={saving}>
-          <Icon name="save" /> {saving ? 'Saving…' : 'Save variant'}
-        </button>
-        <button
-          className={button}
+        <Button variant="secondary" size="sm" icon="save" onClick={() => void onSave()} disabled={saving}>
+          {saving ? 'Saving…' : 'Save'}
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          icon="upload"
+          title="Download this scene as JSON (re-importable)"
           onClick={() => {
             const a = document.createElement('a');
             a.href = `/api/scenes/${projectId}/export`;
             a.download = '';
             a.click();
           }}
-          title="Download this scene as JSON (re-importable)"
         >
-          <Icon name="upload" /> Export
-        </button>
+          Export
+        </Button>
       </div>
     </div>
   );

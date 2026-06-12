@@ -1,5 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { reportError } from '../../store/error-store';
+import { Button } from './Button';
+import { Icon } from './Icon';
 
 interface Props {
   children: ReactNode;
@@ -31,29 +33,25 @@ export class AppErrorBoundary extends Component<Props, State> {
     const { error } = this.state;
     if (!error) return this.props.children;
     return (
-      <div className="flex h-screen flex-col items-center justify-center gap-4 bg-canvas-bg p-6 text-center text-neutral-200">
-        <div className="max-w-lg rounded-xl border border-red-800 bg-red-950/70 p-6 shadow-2xl">
-          <div className="text-3xl">⚠</div>
-          <h1 className="mt-2 text-lg font-semibold text-red-200">Something broke on screen</h1>
-          <p className="mt-2 break-words text-sm text-red-100/90">{error.message}</p>
+      <div className="flex h-screen flex-col items-center justify-center bg-canvas-bg p-6 text-center">
+        <div className="max-w-lg rounded-xl border border-panel-border bg-panel p-7 shadow-xl">
+          <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-rose-50 text-2xl text-rose-600">
+            <Icon name="warning" />
+          </span>
+          <h1 className="mt-3 text-base font-semibold text-neutral-100">Something broke on screen</h1>
+          <p className="mt-1.5 break-words text-sm text-neutral-400">{error.message}</p>
           {error.stack && (
-            <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap rounded bg-black/40 p-3 text-left text-[10px] leading-snug text-red-200/80">
+            <pre className="mt-4 max-h-48 overflow-auto whitespace-pre-wrap rounded-md bg-neutral-900 p-3 text-left text-[10px] leading-snug text-neutral-400">
               {error.stack}
             </pre>
           )}
-          <div className="mt-4 flex justify-center gap-2">
-            <button
-              onClick={() => this.setState({ error: null })}
-              className="rounded bg-neutral-800 px-3 py-2 text-sm text-neutral-100 hover:bg-neutral-700"
-            >
+          <div className="mt-5 flex justify-center gap-2">
+            <Button variant="secondary" size="md" onClick={() => this.setState({ error: null })}>
               Try to recover
-            </button>
-            <button
-              onClick={() => window.location.reload()}
-              className="rounded bg-accent/25 px-3 py-2 text-sm text-accent hover:bg-accent/35"
-            >
+            </Button>
+            <Button variant="primary" size="md" icon="redo" onClick={() => window.location.reload()}>
               Reload app
-            </button>
+            </Button>
           </div>
         </div>
       </div>

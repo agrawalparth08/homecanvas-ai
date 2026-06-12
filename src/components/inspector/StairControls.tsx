@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { makePatch, type ScenePatch } from '@lib/scene/patching';
 import type { Material, Stair } from '@lib/scene/schemas';
+import { Icon } from '../ui/Icon';
 
 const TWO_PI = Math.PI * 2;
 const norm = (r: number) => ((r % TWO_PI) + TWO_PI) % TWO_PI;
@@ -31,8 +32,9 @@ export function StairControls({
     patch('Rotate stair', { rotation: norm(stair.rotation + (deltaDeg * Math.PI) / 180) });
 
   const nudgeBtn =
-    'flex h-7 w-7 items-center justify-center rounded bg-neutral-800 text-neutral-200 hover:bg-neutral-700';
-  const rotBtn = 'flex-1 rounded bg-neutral-800 px-2 py-1 text-xs text-neutral-200 hover:bg-neutral-700';
+    'flex h-8 w-8 items-center justify-center rounded-md border border-panel-border bg-panel text-[16px] text-neutral-300 transition-colors hover:border-neutral-700 hover:text-neutral-100 active:scale-95';
+  const rotBtn =
+    'inline-flex flex-1 items-center justify-center gap-1 rounded-md border border-panel-border bg-panel px-2 py-1.5 text-xs font-medium text-neutral-300 transition-colors hover:border-neutral-700 hover:text-neutral-100 active:scale-95';
 
   return (
     <div className="flex flex-col gap-3">
@@ -53,30 +55,30 @@ export function StairControls({
             ))}
           </select>
         </div>
-        <div className="grid w-[92px] grid-cols-3 grid-rows-3 gap-1">
+        <div className="grid w-[100px] grid-cols-3 grid-rows-3 gap-1.5">
           <span />
-          <button className={nudgeBtn} onClick={() => move(0, step)} title="Move +Y (up)" aria-label="Move up">▲</button>
+          <button className={nudgeBtn} onClick={() => move(0, step)} title="Move up" aria-label="Move up"><Icon name="chevronUp" /></button>
           <span />
-          <button className={nudgeBtn} onClick={() => move(-step, 0)} title="Move −X (left)" aria-label="Move left">◄</button>
-          <span className="flex items-center justify-center text-[10px] text-neutral-600">·</span>
-          <button className={nudgeBtn} onClick={() => move(step, 0)} title="Move +X (right)" aria-label="Move right">►</button>
+          <button className={nudgeBtn} onClick={() => move(-step, 0)} title="Move left" aria-label="Move left"><Icon name="chevronLeft" /></button>
+          <span className="flex items-center justify-center"><span className="h-1.5 w-1.5 rounded-full bg-neutral-700" /></span>
+          <button className={nudgeBtn} onClick={() => move(step, 0)} title="Move right" aria-label="Move right"><Icon name="chevronRight" /></button>
           <span />
-          <button className={nudgeBtn} onClick={() => move(0, -step)} title="Move −Y (down)" aria-label="Move down">▼</button>
+          <button className={nudgeBtn} onClick={() => move(0, -step)} title="Move down" aria-label="Move down"><Icon name="chevronDown" /></button>
           <span />
         </div>
       </div>
 
       {/* ROTATE */}
       <div>
-        <div className="mb-1 flex items-center justify-between">
+        <div className="mb-1.5 flex items-center justify-between">
           <span className="text-xs uppercase tracking-wide text-neutral-500">Direction</span>
-          <span className="text-[11px] text-neutral-400">{toDeg(stair.rotation)}°</span>
+          <span className="font-mono text-[11px] text-neutral-400">{toDeg(stair.rotation)}°</span>
         </div>
-        <div className="flex gap-1">
-          <button className={rotBtn} onClick={() => rotateBy(-90)} title="Rotate 90° counter-clockwise">⟲ 90°</button>
-          <button className={rotBtn} onClick={() => rotateBy(-15)} title="Rotate 15° counter-clockwise">⟲ 15°</button>
-          <button className={rotBtn} onClick={() => rotateBy(15)} title="Rotate 15° clockwise">15° ⟳</button>
-          <button className={rotBtn} onClick={() => rotateBy(90)} title="Rotate 90° clockwise">90° ⟳</button>
+        <div className="flex gap-1.5">
+          <button className={rotBtn} onClick={() => rotateBy(-90)} title="Rotate 90° counter-clockwise"><Icon name="rotateCcw" />90°</button>
+          <button className={rotBtn} onClick={() => rotateBy(-15)} title="Rotate 15° counter-clockwise"><Icon name="rotateCcw" />15°</button>
+          <button className={rotBtn} onClick={() => rotateBy(15)} title="Rotate 15° clockwise"><Icon name="rotateCw" />15°</button>
+          <button className={rotBtn} onClick={() => rotateBy(90)} title="Rotate 90° clockwise"><Icon name="rotateCw" />90°</button>
         </div>
       </div>
 
@@ -84,13 +86,15 @@ export function StairControls({
       {(stair.kind === 'L' || stair.kind === 'U') && (
         <div>
           <div className="mb-1 text-xs uppercase tracking-wide text-neutral-500">Turn</div>
-          <div className="flex gap-1">
+          <div className="flex gap-1.5">
             {(['left', 'right'] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => patch('Stair turn', { turn: t })}
-                className={`flex-1 rounded px-2 py-1 text-xs capitalize ${
-                  (stair.turn ?? 'left') === t ? 'bg-accent/25 text-accent' : 'bg-neutral-800 text-neutral-200 hover:bg-neutral-700'
+                className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium capitalize transition-colors ${
+                  (stair.turn ?? 'left') === t
+                    ? 'bg-accent text-white'
+                    : 'border border-panel-border bg-panel text-neutral-300 hover:border-neutral-700 hover:text-neutral-100'
                 }`}
               >
                 {t}
@@ -106,7 +110,7 @@ export function StairControls({
         <select
           value={stair.kind}
           onChange={(e) => patch('Stair shape', { kind: e.target.value as Stair['kind'] })}
-          className="mt-1 w-full rounded border border-panel-border bg-neutral-900 px-2 py-1.5 text-sm text-neutral-100"
+          className="mt-1 w-full rounded-lg border border-panel-border bg-panel px-2.5 py-2 text-sm text-neutral-100 focus:border-accent focus:outline-none"
         >
           <option value="straight">Straight</option>
           <option value="L">L-shaped</option>
@@ -120,7 +124,7 @@ export function StairControls({
         <select
           value={stair.materialId}
           onChange={(e) => patch('Stair material', { materialId: e.target.value })}
-          className="mt-1 w-full rounded border border-panel-border bg-neutral-900 px-2 py-1.5 text-sm text-neutral-100"
+          className="mt-1 w-full rounded-lg border border-panel-border bg-panel px-2.5 py-2 text-sm text-neutral-100 focus:border-accent focus:outline-none"
         >
           {materials.map((m) => (
             <option key={m.id} value={m.id}>

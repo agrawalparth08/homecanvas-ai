@@ -25,6 +25,20 @@
   --color-neutral-800: #e8eaf0;  /* light surface (buttons, chips) */
   --color-neutral-900: #f3f4f7;  /* lighter surface */
   --color-neutral-950: #f8f9fb;
+
+  /*
+   * Softer, navy-tinted elevation. Tailwind's default black shadows read
+   * generic; these are cooler, tighter, and layered so cards feel lifted, not
+   * "drop-shadowed". Used app-wide via shadow-sm/md/lg/xl/2xl.
+   */
+  --shadow-sm: 0 1px 2px rgba(27, 29, 36, 0.06);
+  --shadow-md: 0 4px 12px -2px rgba(27, 29, 36, 0.10);
+  --shadow-lg: 0 10px 30px -6px rgba(27, 29, 36, 0.12);
+  --shadow-xl: 0 18px 50px -10px rgba(27, 29, 36, 0.16);
+  --shadow-2xl: 0 30px 80px -16px rgba(27, 29, 36, 0.22);
+
+  --radius-lg: 0.625rem;
+  --radius-xl: 0.875rem;
 }
 
 html,
@@ -49,34 +63,18 @@ body {
  */
 .hc-hero {
   background:
-    radial-gradient(120% 150% at 0% 0%, #e7ecff 0%, transparent 46%),
-    radial-gradient(120% 150% at 100% 0%, #ffe9e1 0%, transparent 42%),
-    radial-gradient(150% 170% at 100% 100%, #e3f6ee 0%, transparent 46%),
+    radial-gradient(130% 150% at 0% 0%, #eaeefc 0%, transparent 44%),
+    radial-gradient(130% 150% at 100% 100%, #eef2ec 0%, transparent 46%),
     var(--color-panel);
 }
-.hc-accent-grad {
-  background: linear-gradient(135deg, #6a88e2 0%, #556adc 48%, #8d6ad6 100%);
-}
+/* A restrained single-hue indigo edge that lifts on hover — no rainbow. */
 .hc-card-glow {
   position: relative;
   isolation: isolate;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
-.hc-card-glow::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(135deg, rgba(106, 136, 226, 0.55), rgba(141, 106, 214, 0.18) 40%, transparent 70%);
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  opacity: 0;
-  transition: opacity 0.2s ease;
-  z-index: -1;
-}
-.hc-card-glow:hover::before {
-  opacity: 1;
+.hc-card-glow:hover {
+  box-shadow: 0 14px 40px -14px rgba(75, 70, 229, 0.28);
 }
 
 /* Refined, unobtrusive scrollbars. */

@@ -17,6 +17,7 @@ import { privateFileUrl } from '../../api';
 import { useEditor } from '../../store/editor-store';
 import { reportError } from '../../store/error-store';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { Icon } from '../ui/Icon';
 import { RoomNameEditor } from './RoomNameEditor';
 import { StairControls } from './StairControls';
 
@@ -87,7 +88,7 @@ function RoomExtras({ scene, room }: { scene: HomeScene; room: Room }) {
               </option>
             ))}
           </select>
-          <button onClick={addFurniture} className="rounded bg-neutral-800 px-3 text-xs text-neutral-200 hover:bg-neutral-700">
+          <button onClick={addFurniture} className="rounded-lg border border-panel-border bg-panel px-3 text-xs font-medium text-neutral-200 transition-colors hover:border-neutral-700 hover:text-neutral-100">
             Add
           </button>
         </div>
@@ -96,9 +97,9 @@ function RoomExtras({ scene, room }: { scene: HomeScene; room: Room }) {
         onClick={autoDesign}
         disabled={locked}
         title={locked ? 'Unlock the room first' : `Apply ${designPackName(room)} + place furniture`}
-        className="w-full rounded-md bg-accent/15 px-2 py-2 text-xs font-medium text-accent enabled:hover:bg-accent/25 disabled:opacity-40"
+        className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-accent px-2 py-2.5 text-xs font-semibold text-white shadow-sm shadow-accent/25 transition-colors enabled:hover:bg-[#403bd6] disabled:opacity-45"
       >
-        ✨ Auto-design this room
+        <Icon name="sparkles" className="text-[15px]" /> Auto-design this room
       </button>
     </>
   );
@@ -120,16 +121,16 @@ function ReferencesSection({ scene, selectedRoomId }: { scene: HomeScene; select
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">References</h3>
       <div className="grid grid-cols-2 gap-2">
         {shown.map((r) => (
-          <div key={r.id} className="rounded-lg border border-panel-border bg-neutral-900 p-1.5">
-            <img src={privateFileUrl(r.filePath)} alt={r.kind} className="h-16 w-full rounded object-cover" />
+          <div key={r.id} className="rounded-lg border border-panel-border bg-panel p-1.5">
+            <img src={privateFileUrl(r.filePath)} alt={r.kind} className="h-16 w-full rounded-md object-cover" />
             <div className="mt-1 flex items-center justify-between">
               <span className="text-[10px] uppercase tracking-wide text-neutral-500">{r.kind}</span>
               <button
                 onClick={() => applyPatch(makePatch('Remove reference', [{ type: 'remove_reference_image', imageId: r.id }]))}
-                className="text-neutral-500 hover:text-red-400"
+                className="flex h-5 w-5 items-center justify-center rounded text-[13px] text-neutral-500 hover:bg-neutral-800 hover:text-rose-600"
                 title="Remove reference"
               >
-                ✕
+                <Icon name="close" />
               </button>
             </div>
             {r.extractedPalette && r.extractedPalette.length > 0 && (
@@ -162,7 +163,7 @@ function MaterialSelect({
     <label className="block text-xs text-neutral-400">
       {label}
       <select
-        className="mt-1 w-full rounded border border-panel-border bg-neutral-900 px-2 py-1.5 text-sm text-neutral-100"
+        className="mt-1 w-full rounded-lg border border-panel-border bg-panel px-2.5 py-2 text-sm text-neutral-100 focus:border-accent focus:outline-none"
         value={value}
         onChange={(e) => onChange(e.target.value)}
       >
@@ -207,13 +208,17 @@ function LockToggle({ scene, entityId }: { scene: HomeScene; entityId: string })
   return (
     <button
       onClick={toggle}
-      className={`w-full rounded border px-2 py-1.5 text-xs ${
+      className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors ${
         locked
-          ? 'border-amber-600 bg-amber-950 text-amber-300'
-          : 'border-panel-border bg-neutral-900 text-neutral-300 hover:border-neutral-500'
+          ? 'border-amber-300 bg-amber-50 text-amber-700'
+          : 'border-panel-border bg-panel text-neutral-300 hover:border-neutral-700 hover:text-neutral-100'
       }`}
     >
-      {locked ? '🔒 Locked — suggestions will not touch this' : '🔓 Unlocked — click to lock'}
+      <Icon name={locked ? 'lock' : 'unlock'} className="text-[15px]" />
+      <span className="font-medium">{locked ? 'Locked' : 'Unlocked'}</span>
+      <span className={locked ? 'text-amber-600' : 'text-neutral-500'}>
+        {locked ? '· suggestions skip this' : '· click to lock'}
+      </span>
     </button>
   );
 }
@@ -248,9 +253,10 @@ function RemoveFurnitureButton({ object }: { object: FurnitureObject }) {
   return (
     <>
       <button
-        className="w-full rounded border border-red-900 bg-red-950 px-2 py-1.5 text-xs text-red-300 hover:border-red-700"
+        className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-2 py-2 text-xs font-medium text-rose-600 transition-colors hover:border-rose-300 hover:bg-rose-100"
         onClick={onClick}
       >
+        <Icon name="trash" className="text-[14px]" />
         {structural ? 'Remove pillar…' : 'Remove from room'}
       </button>
       <ConfirmDialog

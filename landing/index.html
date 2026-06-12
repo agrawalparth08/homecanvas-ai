@@ -151,7 +151,7 @@
       <a href="#how">How it works</a>
       <a href="#features">Features</a>
       <a href="#who">Who it's for</a>
-      <a class="navcta" href="#access">Get early access</a>
+      <a class="navcta" href="#access">Join the waitlist</a>
     </div>
   </nav>
 </div>
@@ -160,11 +160,11 @@
   <div class="hero">
     <div class="glow1"></div><div class="glow2"></div>
     <div class="hero-copy">
-      <span class="pill"><span class="dot"></span><span class="eyebrow">Local-first · early access</span></span>
       <h1>See your home <em>before</em> it's built.</h1>
       <p class="sub">Turn a 2D floor plan into an interactive, photoreal 3D home you can redesign — on your machine.</p>
       <div class="form" id="form-hero" style="margin-top:34px">
-        <form method="POST" novalidate>
+        <form method="POST" name="early-access" data-netlify="true" novalidate>
+          <input type="hidden" name="form-name" value="early-access" />
           <input class="field" type="email" name="email" placeholder="you@email.com" required aria-label="Email address" />
           <button class="btn" type="submit">Get early access
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13m-5-5 5 5-5 5"/></svg>
@@ -317,7 +317,8 @@
       <h2>See your home in 3D. Get early access.</h2>
       <p>We'll email you the moment it's ready.</p>
       <div class="form" id="form-cta">
-        <form method="POST" novalidate>
+        <form method="POST" name="early-access" data-netlify="true" novalidate>
+          <input type="hidden" name="form-name" value="early-access" />
           <input class="field" type="email" name="email" placeholder="you@email.com" required aria-label="Email address" />
           <button class="btn" type="submit">Get early access
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13m-5-5 5 5-5 5"/></svg>
@@ -338,21 +339,35 @@
 
 <script>
 /* ---------- email capture ----------
-   Create a free form at formspree.io, then replace FORM_ID below.
-   Until then, submissions show the success state locally (no data sent). */
-var FORM_ID = 'YOUR_FORM_ID';
+   Two ways submissions are captured (first match wins):
+   1. Netlify Forms (zero setup): deploy this folder on Netlify and every
+      submission appears under Site → Forms ("early-access"). The forms carry
+      data-netlify="true" + a form-name field, and we POST url-encoded to "/".
+   2. Formspree: create a free form at formspree.io and put its ID below —
+      emails then land in your Formspree inbox/notifications instead.
+   On file:// previews nothing is sent (console warning + success state only). */
+var FORMSPREE_ID = 'YOUR_FORM_ID';
 document.querySelectorAll('.form').forEach(function (box) {
   var form = box.querySelector('form');
+  var emailInput = form.querySelector('input[name=email]');
   form.addEventListener('submit', function (e) {
     e.preventDefault();
-    var email = form.querySelector('input[name=email]').value.trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { form.querySelector('input').focus(); return; }
-    if (FORM_ID !== 'YOUR_FORM_ID') {
-      fetch('https://formspree.io/f/' + FORM_ID, {
+    var email = emailInput.value.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { emailInput.focus(); return; }
+    if (FORMSPREE_ID !== 'YOUR_FORM_ID') {
+      fetch('https://formspree.io/f/' + FORMSPREE_ID, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({ email: email }),
       }).catch(function () {});
+    } else if (location.protocol.indexOf('http') === 0) {
+      fetch('/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'form-name=early-access&email=' + encodeURIComponent(email),
+      }).catch(function () {});
+    } else {
+      console.warn('HomeCanvas: local preview — email not sent anywhere.');
     }
     box.classList.add('done');
   });

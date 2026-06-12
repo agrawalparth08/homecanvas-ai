@@ -8,12 +8,21 @@ One self-contained static page (`index.html` + the demo video + poster). No buil
 open landing/index.html        # or any static server
 ```
 
-## Wire up email capture (2 minutes)
+## Email capture — where the emails go
 
-1. Create a free form at [formspree.io](https://formspree.io) → copy the form ID.
-2. In `index.html`, replace `YOUR_FORM_ID` (one constant at the top of the script).
+Two paths, first match wins:
 
-Until then, submissions show the success state locally and send nothing.
+1. **Netlify (zero setup, recommended):** deploy this folder on Netlify and the
+   forms are captured automatically — every signup appears in the Netlify
+   dashboard under **Site → Forms → "early-access"** (enable email
+   notifications there to get pinged per signup).
+2. **Formspree (host-agnostic):** create a free form at
+   [formspree.io](https://formspree.io) and replace `YOUR_FORM_ID` in
+   `index.html` (one constant at the top of the script) — signups then land in
+   your Formspree inbox instead, on any host (Cloudflare Pages, S3, anything).
+
+⚠️ Until one of these is in place, submissions show the success state but are
+**not stored anywhere** (a console warning says so on local previews).
 
 ## Deploy to tryhomecanvas.com
 

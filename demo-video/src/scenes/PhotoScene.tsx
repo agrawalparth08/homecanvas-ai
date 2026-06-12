@@ -2,7 +2,7 @@ import React from 'react';
 import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { C, FONT } from '../theme';
 import { DollHouse3D } from '../components/DollHouse3D';
-import { CaptureMedia, pickCapture } from '../captures';
+import { CaptureGallery, pickAll } from '../captures';
 
 const MAX_SAMPLES = 400;
 const COLS = 10;
@@ -25,7 +25,14 @@ export const PhotoScene: React.FC = () => {
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
 
-  const convergeEnd = durationInFrames * 0.72;
+  // Real Photo Mode renders from the app (penthouse build): the tiles resolve
+  // over your actual path-traced render(s) instead of the synthetic dollhouse.
+  // Drop several (photoreal.png, photoreal2.png, …) → they cross-fade.
+  const photos = pickAll('photoreal', 'render', 'photo', 'hero');
+  const galleryMode = photos.length > 0;
+  // With multiple renders, finish the tile-convergence before the 2nd fades in.
+  const segFrac = galleryMode ? 1 / photos.length : 1;
+  const convergeEnd = durationInFrames * Math.min(0.72, segFrac * 0.92);
   const azimuth = -20 + frame * 0.045;
   const zoom = interpolate(frame, [0, durationInFrames], [1.42, 1.56]);
 
@@ -38,15 +45,11 @@ export const PhotoScene: React.FC = () => {
   const converged = samples >= MAX_SAMPLES;
   const savePulse = converged ? 1 + Math.sin(frame / 5) * 0.04 : 1;
 
-  // A real Photo Mode render from the app (penthouse build): the tiles resolve
-  // over your actual path-traced still/clip instead of the synthetic dollhouse.
-  const real = pickCapture('photoreal', 'photorealclip', 'photorealstill', 'hero');
-
   return (
     <AbsoluteFill style={{ fontFamily: FONT }}>
-      {real ? (
+      {galleryMode ? (
         <AbsoluteFill style={{ background: '#000' }}>
-          <CaptureMedia capture={real} style={real.kind === 'image' ? { transform: `scale(${zoom})` } : {}} />
+          <CaptureGallery captures={photos} frame={frame} duration={durationInFrames} />
         </AbsoluteFill>
       ) : (
         <DollHouse3D azimuth={azimuth} tilt={57} zoom={zoom} quality="clean" />

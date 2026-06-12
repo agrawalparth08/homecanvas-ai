@@ -1,4 +1,4 @@
-import { OffthreadVideo, Img, staticFile } from 'remotion';
+import { AbsoluteFill, interpolate, OffthreadVideo, Img, staticFile } from 'remotion';
 import React from 'react';
 import capturesJson from './captures.json';
 
@@ -19,7 +19,63 @@ export function pickCapture(...slots: string[]): Capture | null {
   return null;
 }
 
+/**
+ * ALL captures whose slot starts with one of the prefixes, in slot order — so
+ * `photoreal.png`, `photoreal2.png`, `photoreal-top.png` all feed the photo
+ * gallery. Lets you drop several real renders and show them all.
+ */
+export function pickAll(...prefixes: string[]): Capture[] {
+  const ps = prefixes.map((p) => p.toLowerCase());
+  return Object.keys(CAPTURES)
+    .filter((k) => ps.some((p) => k.startsWith(p)))
+    .sort()
+    .map((k) => CAPTURES[k]!);
+}
+
 export const hasAnyCapture = Object.keys(CAPTURES).length > 0;
+
+/** Slow Ken-Burns transform for a still (videos move on their own → identity). */
+function kb(frame: number, dur: number, kind: Capture['kind']): React.CSSProperties {
+  if (kind === 'video') return {};
+  const s = interpolate(frame, [0, dur], [1.05, 1.2], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  const x = interpolate(frame, [0, dur], [-2, 2], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  return { transform: `scale(${s}) translateX(${x}%)` };
+}
+
+/**
+ * Cross-fading Ken-Burns gallery over a list of captures, filling the scene.
+ * One capture → a single moving shot; several → equal cross-faded segments.
+ */
+export const CaptureGallery: React.FC<{ captures: Capture[]; frame: number; duration: number }> = ({
+  captures,
+  frame,
+  duration,
+}) => {
+  if (captures.length === 0) return null;
+  if (captures.length === 1) {
+    return <CaptureMedia capture={captures[0]!} style={kb(frame, duration, captures[0]!.kind)} />;
+  }
+  const seg = duration / captures.length;
+  return (
+    <>
+      {captures.map((c, i) => {
+        const start = i * seg;
+        const op = interpolate(
+          frame,
+          [start - 12, start + 8, start + seg - 8, start + seg + 12],
+          [0, 1, 1, 0],
+          { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' },
+        );
+        if (op <= 0) return null;
+        return (
+          <AbsoluteFill key={i} style={{ opacity: op }}>
+            <CaptureMedia capture={c} style={kb(frame - start, seg, c.kind)} />
+          </AbsoluteFill>
+        );
+      })}
+    </>
+  );
+};
 
 /**
  * Render a captured clip or still, cover-fitting the frame. Stills get a slow

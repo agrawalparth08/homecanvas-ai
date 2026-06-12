@@ -45,8 +45,14 @@ Drop the files into `public/captures/`, named by slot:
 
 | File | Used by |
 |---|---|
-| `walkthrough.mp4` (or `walk.mp4` / `orbit.mp4` / `tour.mp4`) | the 3D-canvas scene |
-| `photoreal.png` (or `photoreal.mp4`) | the Photo Mode scene |
+| `walkthrough*.mp4/png` (or `orbit*` / `walk*` / `tour*` / `top*`) | the 3D-canvas scene |
+| `photoreal*.png/mp4` (or `render*`) | the Photo Mode scene |
+
+Drop **several** and they cross-fade: `photoreal.png`, `photoreal2.png`,
+`photoreal-top.png` become a little gallery of your real home (the Photo Mode
+scene path-traces the first, then cross-fades through the rest); multiple
+`walkthrough*/orbit*` shots montage in the 3D-canvas scene. Stills get a slow
+Ken-Burns; clips play as video.
 
 Then:
 

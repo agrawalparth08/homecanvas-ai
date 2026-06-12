@@ -2,7 +2,7 @@ import React from 'react';
 import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { C, FONT } from '../theme';
 import { DollHouse3D } from '../components/DollHouse3D';
-import { CaptureMedia, pickCapture } from '../captures';
+import { CaptureGallery, pickAll } from '../captures';
 
 const MODES = ['Orbit', 'Top', 'Walk', 'Tour'];
 
@@ -25,28 +25,25 @@ export const Canvas3DScene: React.FC = () => {
 
   const active = Math.min(MODES.length - 1, Math.floor((frame / durationInFrames) * MODES.length));
 
-  // Real screen-grab from the app's 3D canvas (penthouse build), if captured.
-  const clip = pickCapture('walkthrough', 'walk', 'orbit', 'tour');
-  const isStill = clip?.kind === 'image';
-  // Ken-Burns so a dropped screenshot still feels alive (videos move on their own).
-  const kbScale = interpolate(frame, [0, durationInFrames], [1.05, 1.2]);
-  const kbX = interpolate(frame, [0, durationInFrames], [-2, 2]);
-  // Mode chips only make sense over the synthetic camera or a moving clip,
-  // not over a single still.
-  const showChips = !clip || clip.kind === 'video';
+  // Real screen-grabs from the app's 3D canvas (penthouse build), if captured —
+  // a cross-fading gallery of however many you dropped in.
+  const clips = pickAll('walkthrough', 'orbit', 'walk', 'tour', 'canvas', 'view', 'top');
+  const hasClips = clips.length > 0;
+  // Mode chips only make sense over the synthetic camera, not over real footage.
+  const showChips = !hasClips;
 
   return (
     <AbsoluteFill style={{ fontFamily: FONT }}>
-      {clip ? (
+      {hasClips ? (
         <AbsoluteFill style={{ background: '#0c0d12', overflow: 'hidden' }}>
-          <CaptureMedia capture={clip} style={isStill ? { transform: `scale(${kbScale}) translateX(${kbX}%)` } : {}} />
+          <CaptureGallery captures={clips} frame={frame} duration={durationInFrames} />
         </AbsoluteFill>
       ) : (
         <DollHouse3D azimuth={azimuth} tilt={tilt} zoom={zoom} quality="clean" />
       )}
 
       {/* soft edge falloff (only over the synthetic stage; real footage stays untinted) */}
-      {!clip && (
+      {!hasClips && (
         <AbsoluteFill style={{ background: 'radial-gradient(ellipse at center, transparent 58%, rgba(238,240,244,0.8) 100%)' }} />
       )}
 

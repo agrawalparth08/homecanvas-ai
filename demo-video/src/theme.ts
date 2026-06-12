@@ -32,10 +32,20 @@ export const C = {
 
 export const FONT = `${fontFamily}, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`;
 
-/** Standard white card. */
+/** Standard white card — tighter radius + a shadow that hugs the card (negative spread). */
 export const CARD: CSSProperties = {
   background: C.panel,
   border: `1px solid ${C.panelBorder}`,
-  borderRadius: 18,
-  boxShadow: '0 18px 50px rgba(27, 29, 36, 0.08)',
+  borderRadius: 14,
+  boxShadow: '0 16px 36px -12px rgba(27, 29, 36, 0.12)',
+};
+
+/** Two radii only — keep the whole piece consistent. */
+export const R = { control: 10, card: 14 } as const;
+
+/** Tiered entrance motion so reveals feel intentional, not all-identical. */
+export const SPRING = {
+  hero: { damping: 18, stiffness: 150 } as const,
+  card: { damping: 16, stiffness: 110 } as const,
+  soft: { damping: 20, stiffness: 90 } as const,
 };

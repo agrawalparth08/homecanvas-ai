@@ -31,25 +31,25 @@ export const Canvas3DScene: React.FC = () => {
       {/* soft edge falloff into the light chrome */}
       <AbsoluteFill style={{ background: 'radial-gradient(ellipse at center, transparent 58%, rgba(238,240,244,0.8) 100%)' }} />
 
-      <div style={{ position: 'absolute', top: 36, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 14 }}>
-        {MODES.map((m, i) => (
-          <div
-            key={m}
-            style={{
-              padding: '12px 26px',
-              borderRadius: 12,
-              fontSize: 26,
-              fontWeight: 600,
-              background: i === active ? C.accent : 'rgba(255,255,255,0.92)',
-              color: i === active ? '#ffffff' : C.inkDim,
-              border: `1px solid ${i === active ? C.accent : C.panelBorder}`,
-              boxShadow: i === active ? '0 12px 34px rgba(75,70,229,0.35)' : '0 8px 24px rgba(27,29,36,0.08)',
-              transform: i === active ? 'scale(1.08)' : 'scale(1)',
-            }}
-          >
-            {m}
-          </div>
-        ))}
+      {/* a single segmented control, not four floating pills */}
+      <div style={{ position: 'absolute', top: 40, left: 0, right: 0, display: 'flex', justifyContent: 'center' }}>
+        <div style={{ display: 'flex', gap: 4, padding: 5, borderRadius: 12, background: 'rgba(255,255,255,0.85)', border: `1px solid ${C.panelBorder}`, boxShadow: '0 8px 22px -10px rgba(27,29,36,0.18)' }}>
+          {MODES.map((m, i) => (
+            <div
+              key={m}
+              style={{
+                padding: '9px 22px',
+                borderRadius: 9,
+                fontSize: 23,
+                fontWeight: 600,
+                background: i === active ? C.accent : 'transparent',
+                color: i === active ? '#ffffff' : C.inkDim,
+              }}
+            >
+              {m}
+            </div>
+          ))}
+        </div>
       </div>
     </AbsoluteFill>
   );

@@ -1,6 +1,6 @@
 import React from 'react';
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
-import { C, FONT } from '../theme';
+import { C, FONT, SPRING } from '../theme';
 import { MailIcon } from '../components/Icons';
 
 const EMAIL = 'agrawalparth08@gmail.com';
@@ -9,8 +9,8 @@ export const OutroScene: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
 
-  const pop = spring({ frame: frame - 4, fps, config: { damping: 14, stiffness: 110 } });
-  const cardIn = spring({ frame: frame - 46, fps, config: { damping: 15, stiffness: 120 } });
+  const pop = spring({ frame: frame - 4, fps, config: SPRING.hero });
+  const cardIn = spring({ frame: frame - 46, fps, config: SPRING.card });
   const glowPulse = 1 + Math.sin(frame / 9) * 0.05;
   const fadeOut = interpolate(frame, [durationInFrames - 18, durationInFrames - 2], [1, 0], {
     extrapolateLeft: 'clamp',

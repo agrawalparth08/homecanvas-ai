@@ -1,6 +1,6 @@
 import React from 'react';
 import { AbsoluteFill, spring, useCurrentFrame, useVideoConfig } from 'remotion';
-import { C, CARD, FONT } from '../theme';
+import { C, CARD, FONT, SPRING } from '../theme';
 import { BuildingsIcon, CompassIcon, HouseIcon, SofaIcon } from '../components/Icons';
 
 const PERSONAS = [
@@ -15,7 +15,7 @@ export const AudienceScene: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
 
-  const titleIn = spring({ frame: frame - 4, fps, config: { damping: 15 } });
+  const titleIn = spring({ frame: frame - 4, fps, config: SPRING.hero });
   const active = Math.min(
     PERSONAS.length - 1,
     Math.max(0, Math.floor(((frame - 80) / (durationInFrames - 110)) * PERSONAS.length)),
@@ -29,7 +29,7 @@ export const AudienceScene: React.FC = () => {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 580px)', gap: 26 }}>
           {PERSONAS.map((p, i) => {
-            const t = spring({ frame: frame - 18 - i * 14, fps, config: { damping: 14, stiffness: 120 } });
+            const t = spring({ frame: frame - 18 - i * 14, fps, config: SPRING.card });
             const hot = frame > 80 && i === active;
             return (
               <div
@@ -41,18 +41,20 @@ export const AudienceScene: React.FC = () => {
                   gap: 24,
                   textAlign: 'left',
                   padding: '26px 30px',
-                  background: hot ? '#f4f4fe' : C.panel,
-                  border: `2px solid ${hot ? C.accent : C.panelBorder}`,
-                  transform: `translateY(${(1 - t) * 60}px) scale(${hot ? 1.03 : 1})`,
+                  background: C.panel,
+                  border: `1px solid ${hot ? C.accent : C.panelBorder}`,
+                  transform: `translateY(${(1 - t) * 60}px)`,
                   opacity: t,
-                  boxShadow: hot ? '0 24px 60px rgba(75,70,229,0.22)' : (CARD.boxShadow as string),
+                  boxShadow: hot
+                    ? `inset 0 0 0 1px ${C.accent}, 0 16px 36px -12px rgba(75,70,229,0.20)`
+                    : (CARD.boxShadow as string),
                 }}
               >
                 <div
                   style={{
                     width: 86,
                     height: 86,
-                    borderRadius: 20,
+                    borderRadius: 16,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',

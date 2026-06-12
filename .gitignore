@@ -26,3 +26,6 @@ coverage/
 .DS_Store
 *.log
 .gstack/
+
+# landing-page local screenshots
+/landing/preview-*.png

@@ -27,21 +27,31 @@ export const Canvas3DScene: React.FC = () => {
 
   // Real screen-grab from the app's 3D canvas (penthouse build), if captured.
   const clip = pickCapture('walkthrough', 'walk', 'orbit', 'tour');
+  const isStill = clip?.kind === 'image';
+  // Ken-Burns so a dropped screenshot still feels alive (videos move on their own).
+  const kbScale = interpolate(frame, [0, durationInFrames], [1.05, 1.2]);
+  const kbX = interpolate(frame, [0, durationInFrames], [-2, 2]);
+  // Mode chips only make sense over the synthetic camera or a moving clip,
+  // not over a single still.
+  const showChips = !clip || clip.kind === 'video';
 
   return (
     <AbsoluteFill style={{ fontFamily: FONT }}>
       {clip ? (
-        <AbsoluteFill style={{ background: '#000' }}>
-          <CaptureMedia capture={clip} />
+        <AbsoluteFill style={{ background: '#0c0d12', overflow: 'hidden' }}>
+          <CaptureMedia capture={clip} style={isStill ? { transform: `scale(${kbScale}) translateX(${kbX}%)` } : {}} />
         </AbsoluteFill>
       ) : (
         <DollHouse3D azimuth={azimuth} tilt={tilt} zoom={zoom} quality="clean" />
       )}
 
-      {/* soft edge falloff into the light chrome */}
-      <AbsoluteFill style={{ background: 'radial-gradient(ellipse at center, transparent 58%, rgba(238,240,244,0.8) 100%)' }} />
+      {/* soft edge falloff (only over the synthetic stage; real footage stays untinted) */}
+      {!clip && (
+        <AbsoluteFill style={{ background: 'radial-gradient(ellipse at center, transparent 58%, rgba(238,240,244,0.8) 100%)' }} />
+      )}
 
       {/* a single segmented control, not four floating pills */}
+      {showChips && (
       <div style={{ position: 'absolute', top: 40, left: 0, right: 0, display: 'flex', justifyContent: 'center' }}>
         <div style={{ display: 'flex', gap: 4, padding: 5, borderRadius: 12, background: 'rgba(255,255,255,0.85)', border: `1px solid ${C.panelBorder}`, boxShadow: '0 8px 22px -10px rgba(27,29,36,0.18)' }}>
           {MODES.map((m, i) => (
@@ -61,6 +71,7 @@ export const Canvas3DScene: React.FC = () => {
           ))}
         </div>
       </div>
+      )}
     </AbsoluteFill>
   );
 };

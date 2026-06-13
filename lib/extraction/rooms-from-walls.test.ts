@@ -48,4 +48,23 @@ describe('detectRooms', () => {
     const rooms = detectRooms(walls, { minArea: 1000 });
     expect(rooms).toEqual([{ x0: 5, y0: 0, x1: 200, y1: 100 }]);
   });
+
+  it('interval-coverage: a stub wall covering <50% of a boundary does not split the room', () => {
+    // divider at x=100 spans only y∈[0,40] (40% of the boundary) → the open
+    // majority connects the halves → still ONE room (no false split).
+    const rooms = detectRooms(frame(200, 100, [{ orient: 'v', coord: 100, lo: 0, hi: 40 }]));
+    expect(rooms).toEqual([{ x0: 0, y0: 0, x1: 200, y1: 100 }]);
+  });
+
+  it('interval-coverage: a divider of two abutting segments still splits the room', () => {
+    // union coverage of the two collinear segments spans the whole boundary.
+    const rooms = detectRooms(frame(200, 100, [
+      { orient: 'v', coord: 100, lo: 0, hi: 50 },
+      { orient: 'v', coord: 100, lo: 50, hi: 100 },
+    ]));
+    expect(rooms).toEqual([
+      { x0: 0, y0: 0, x1: 100, y1: 100 },
+      { x0: 100, y0: 0, x1: 200, y1: 100 },
+    ]);
+  });
 });

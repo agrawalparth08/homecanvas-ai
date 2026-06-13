@@ -34,15 +34,28 @@ export function detectRooms(walls: WallLine[], opts: { coordTol?: number; minAre
   const nx = xs.length - 1, ny = ys.length - 1;
   if (nx < 1 || ny < 1) return [];
 
-  // a vertical wall blocks the segment [y0,y1] at x if one covers its midpoint
-  const vBlocks = (x: number, y0: number, y1: number) => {
-    const m = (y0 + y1) / 2;
-    return V.some((w) => Math.abs(w.coord - x) <= tol && w.lo <= m + tol && w.hi >= m - tol);
+  // A cell edge is blocked only if the walls at that coordinate cover ≥ COVER_FRAC
+  // of the *whole* edge interval — not merely its midpoint. The old midpoint test
+  // could wrongly open an edge whose centre fell in a gap between two collinear
+  // wall segments (e.g. a door split), or wrongly block an edge a stray short wall
+  // only touched at the middle. Coverage is the union of all near-coord segments.
+  const COVER_FRAC = 0.5;
+  const coverage = (lines: WallLine[], coord: number, a: number, b: number): number => {
+    const ivs = lines
+      .filter((w) => Math.abs(w.coord - coord) <= tol)
+      .map((w) => [Math.max(w.lo, a), Math.min(w.hi, b)] as [number, number])
+      .filter(([lo, hi]) => hi > lo)
+      .sort((p, q) => p[0] - q[0]);
+    let covered = 0, end = -Infinity;
+    for (const [lo, hi] of ivs) {
+      const s = Math.max(lo, end);
+      if (hi > s) covered += hi - s;
+      if (hi > end) end = hi;
+    }
+    return covered;
   };
-  const hBlocks = (y: number, x0: number, x1: number) => {
-    const m = (x0 + x1) / 2;
-    return H.some((w) => Math.abs(w.coord - y) <= tol && w.lo <= m + tol && w.hi >= m - tol);
-  };
+  const vBlocks = (x: number, y0: number, y1: number) => coverage(V, x, y0, y1) >= (y1 - y0) * COVER_FRAC;
+  const hBlocks = (y: number, x0: number, x1: number) => coverage(H, y, x0, x1) >= (x1 - x0) * COVER_FRAC;
 
   const N = nx * ny;
   const OUT = N;

@@ -153,7 +153,7 @@ const DATA = {
       { t: "DXF → PrimitivePlan → HomeScene wiring (one call)", s: "done" },
       { t: "POST /api/private-home/build-scene endpoint → open in verify wizard", s: "done", note: "live: DXF file or PrimitivePlan → validated HomeScene" },
       { t: "Scale-aware px→mm thresholds + detectRooms interval-coverage (false-merge fix)", s: "done", note: "interval-coverage live; spine scales to mm before detectRooms / healWalls" },
-      { t: "Path A — DWG: install libredwg, wire convertDwgToDxf, layer-aware DXF rewrite (angled / arc / INSERT)", s: "done", note: "libredwg installed; DWG→DXF; layer-aware parse wired; REAL penthouse → valid 60-room scene (851 walls). Next: double-line→centerline collapse to de-segment." },
+      { t: "Path A — DWG: install libredwg, wire convertDwgToDxf, layer-aware DXF rewrite (angled / arc / INSERT)", s: "done", note: "libredwg installed; DWG→DXF; layer-aware parse wired. REAL penthouse: 851 doubled walls → 468 clean centerlines (double-line collapse), 60 phantom rooms → 4 real rooms (33/22/5/2 m²), 0 errors. Full ~18-room fidelity needs building-outline detection (future); rest traced in the verify wizard." },
       { t: "Path A — hybrid angled-wall room detection (polygon-subdivision fallback)", s: "todo" },
       { t: "Path B — vector-PDF-first extraction → scene (most PDFs are vector ≈ CAD)", s: "done", note: "color-features + pdf-vector core built + tested (19 tests); PDF-upload→segments UI wiring pending" },
       { t: "Path B — raster CV (OpenCV worker) + auto-scale from OCR dimensions", s: "todo" },

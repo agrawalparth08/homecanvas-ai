@@ -32,11 +32,12 @@ const planToWorldXZ = (x: number, y: number): [number, number] => [x * MM, -y * 
 
 /**
  * Map walk-camera yaw (0 faces +plan.y, increasing toward +plan.x) to a three.js
- * Y-rotation. +plan.y -> -world.z (three's default forward), and turning toward
- * +plan.x (+world.x) is a +Y rotation in three's right-handed frame, so the
- * three yaw equals the plan yaw directly.
+ * Y-rotation. three's default forward is -Z; a +Y rotation by θ takes (0,0,-1) to
+ * (-sinθ, 0, -cosθ). The walk heading in world is (sin yaw, 0, -cos yaw) (because
+ * world.z = -plan.y), so we need -sinθ = sin yaw → θ = -yaw. Without the negation
+ * the camera looks mirrored across X and W walks opposite to the view.
  */
-const yawToThree = (yaw: number): number => yaw;
+const yawToThree = (yaw: number): number => -yaw;
 
 interface TourPose {
   /** Plan position (mm) + heading (rad), in walk-camera convention. */

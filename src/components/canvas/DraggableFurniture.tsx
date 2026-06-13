@@ -83,6 +83,9 @@ export function DraggableFurniture({ object, floor, floorElevation, children }: 
   // Ephemeral, render-driving drag target in plan mm (null => not dragging).
   const [dragPlan, setDragPlan] = useState<Vec2 | null>(null);
   const draggingRef = useRef(false);
+  // Plan-mm offset from the grabbed point to the piece centre, so the drag tracks
+  // the grab point rather than teleporting the centre under the cursor.
+  const grabOffsetRef = useRef<Vec2>({ x: 0, y: 0 });
 
   const size: Size2 = { w: object.dimensions.w, d: object.dimensions.d };
   const bounds = useMemo(() => {
@@ -95,25 +98,37 @@ export function DraggableFurniture({ object, floor, floorElevation, children }: 
   // own resting elevation, both mm -> m. The ray is intersected against this.
   const floorY = (floorElevation + object.transform.elevation) * MM;
 
-  /** Resolve a pointer event to a snapped plan-mm centre, or null off-plane. */
-  const planFromEvent = (e: ThreeEvent<PointerEvent>): Vec2 | null => {
+  /** Raw pointer→plan hit (no offset, no snap), or null off the floor plane. */
+  const rawPlanFromEvent = (e: ThreeEvent<PointerEvent>): Vec2 | null => {
     // fiber recomputes this ray from the event's pointer + active camera each
     // move (including while the pointer is captured off the mesh), so we read it
     // directly instead of mutating the shared raycaster.
     const { origin: o, direction: d } = e.ray;
     const hit = screenToFloor({ x: o.x, y: o.y, z: o.z }, { x: d.x, y: d.y, z: d.z }, floorY);
-    if (!hit) return null;
-    const planTarget = worldToPlan(hit);
-    if (!bounds) return planTarget; // no room bounds known: free-drag, no snap
-    return dragSnap(planTarget, size, others, bounds, { gap: 0 });
+    return hit ? worldToPlan(hit) : null;
+  };
+
+  /** Snapped target centre for the drag, preserving the grab offset. */
+  const planFromEvent = (e: ThreeEvent<PointerEvent>): Vec2 | null => {
+    const raw = rawPlanFromEvent(e);
+    if (!raw) return null;
+    const centre = { x: raw.x + grabOffsetRef.current.x, y: raw.y + grabOffsetRef.current.y };
+    if (!bounds) return centre; // no room bounds known: free-drag, no snap
+    return dragSnap(centre, size, others, bounds, { gap: 0 });
   };
 
   const onPointerDown = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
     draggingRef.current = true;
     (e.target as Element).setPointerCapture?.(e.pointerId);
-    const next = planFromEvent(e);
-    if (next) setDragPlan(next);
+    // Anchor the drag at the grabbed point so the centre tracks the cursor by a
+    // fixed offset (no teleport). We deliberately do NOT setDragPlan here: a press
+    // with no motion leaves dragPlan null, so a plain click stays a no-op — no
+    // ghost, no transform_object commit. The first move starts the live preview.
+    const raw = rawPlanFromEvent(e);
+    grabOffsetRef.current = raw
+      ? { x: object.transform.x - raw.x, y: object.transform.y - raw.y }
+      : { x: 0, y: 0 };
   };
 
   const onPointerMove = (e: ThreeEvent<PointerEvent>) => {

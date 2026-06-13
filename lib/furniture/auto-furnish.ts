@@ -12,7 +12,7 @@
  * the configured gap behave exactly as elsewhere.
  */
 import type { Room, FurnitureObject } from '../scene/schemas';
-import { rectFootprint, worldFootprint, collidesWithAny } from '../geometry/collision';
+import { rectFootprint, worldFootprint, collidesWithAny, polygonContains } from '../geometry/collision';
 import type { Vec2 } from '../geometry/vec';
 import { suggestFurniture, furnitureById, type AllFurnitureItem } from './all-furniture';
 
@@ -129,6 +129,14 @@ export function autoFurnishRoom(room: Room, opts: AutoFurnishOptions = {}): Furn
     const cx = cursorX + item.w / 2;
     const cy = rowY + item.d / 2;
     const foot = worldFootprint({ footprint: rectFootprint(item.w, item.d), transform: { x: cx, y: cy, rotationY: 0 } });
+
+    // The bbox overhangs the walls for non-rectangular / angled rooms, so a slot
+    // inside the bbox can still be outside the actual room polygon. Reject those
+    // (skip this slot) rather than floating a piece outside the walls.
+    if (!polygonContains(room.boundary.outer, foot)) {
+      cursorX += item.w + gap;
+      continue;
+    }
 
     // Belt-and-suspenders: the cursor layout keeps pieces apart, but if a wide
     // piece on a prior shelf juts into this slot, skip rather than overlap.

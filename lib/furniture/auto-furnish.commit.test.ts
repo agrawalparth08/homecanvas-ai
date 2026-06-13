@@ -9,6 +9,8 @@ import { autoFurnishRoom } from './auto-furnish';
 import { uniqueFurnitureId } from './catalog';
 import { commit } from '../scene/commit';
 import { makePatch } from '../scene/patching';
+import { polygonContains, worldFootprint, rectFootprint } from '../geometry/collision';
+import type { Room } from '../scene/schemas';
 
 /** Largest room on floor 0 — most slots, most pieces. */
 function biggestRoom(scene: ReturnType<typeof buildSampleHome>) {
@@ -46,6 +48,45 @@ describe('autoFurnishRoom → commit', () => {
     for (const p of pieces) {
       expect(nextFloor.objects.some((o) => o.id === p.id)).toBe(true);
       expect(nextRoom.furnitureIds).toContain(p.id);
+    }
+  });
+});
+
+describe('autoFurnishRoom — non-rectangular room containment', () => {
+  it('never places a piece outside an L-shaped room polygon', () => {
+    // 6×6m square with the top-right 3×3m quadrant removed: the bbox overhangs
+    // the walls, so a bbox-only packer would float pieces into the missing corner.
+    const outer = [
+      { x: 0, y: 0 },
+      { x: 6000, y: 0 },
+      { x: 6000, y: 3000 },
+      { x: 3000, y: 3000 },
+      { x: 3000, y: 6000 },
+      { x: 0, y: 6000 },
+    ];
+    const room = {
+      id: 'L',
+      floorId: 'f',
+      name: 'L room',
+      kind: 'living',
+      openToSky: false,
+      boundary: { outer, holes: [] },
+      wallIds: [],
+      floorSurface: { id: 'L-floor', parentId: 'L', kind: 'floor', materialId: 'm' },
+      furnitureIds: [],
+      lightIds: [],
+      styleTags: [],
+      source: { kind: 'agent', confidence: 1 },
+    } as unknown as Room;
+
+    const pieces = autoFurnishRoom(room);
+    expect(pieces.length).toBeGreaterThan(0);
+    for (const p of pieces) {
+      const foot = worldFootprint({
+        footprint: rectFootprint(p.dimensions.w, p.dimensions.d),
+        transform: { x: p.transform.x, y: p.transform.y, rotationY: p.transform.rotationY },
+      });
+      expect(polygonContains(outer, foot)).toBe(true);
     }
   });
 });

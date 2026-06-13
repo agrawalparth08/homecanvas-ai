@@ -8,7 +8,6 @@ import {
   Lightformer,
   MapControls,
   OrbitControls,
-  PointerLockControls,
 } from '@react-three/drei';
 import { Bloom, EffectComposer, N8AO, SMAA, Vignette } from '@react-three/postprocessing';
 import { useQuery } from '@tanstack/react-query';
@@ -19,6 +18,7 @@ import { fetchAssetManifest, assetUrl } from '../../api';
 import { useEditor } from '../../store/editor-store';
 import { FloorContent } from './FloorContent';
 import { TourController } from './TourController';
+import { WalkControls } from './WalkControls';
 import { useMaterialMap } from './materials';
 
 const MM = 0.001;
@@ -116,11 +116,9 @@ function CameraRig({ scene }: { scene: HomeScene }) {
   }, [viewMode, camera, center, span]);
 
   if (viewMode === 'tour') return null; // TourController owns the camera
+  if (viewMode === 'walk') return null; // WalkControls owns the camera (drag-look + WASD)
   if (viewMode === 'top') {
     return <MapControls makeDefault target={center} enableRotate={false} />;
-  }
-  if (viewMode === 'walk') {
-    return <PointerLockControls makeDefault selector="#walk-start" />;
   }
   return <OrbitControls makeDefault target={center} maxPolarAngle={Math.PI / 2 - 0.02} minDistance={1.5} maxDistance={Math.max(40, span * 3)} />;
 }
@@ -139,6 +137,20 @@ export function SceneCanvas() {
     () => (scene && activeFloorId ? computeTourStops(scene, activeFloorId) : []),
     [scene, activeFloorId],
   );
+
+  // Walk mode starts at the plan-space center of the home (mm), facing +plan.y.
+  // WalkControls drives the camera from here with drag-look + WASD.
+  const walkStart = useMemo(() => {
+    let maxX = 0;
+    let maxY = 0;
+    for (const f of scene?.floors ?? [])
+      for (const w of f.walls)
+        for (const p of w.path.pts) {
+          maxX = Math.max(maxX, p.x);
+          maxY = Math.max(maxY, p.y);
+        }
+    return { x: maxX / 2, y: maxY / 2, yaw: 0 };
+  }, [scene]);
 
   if (!scene) return null;
   const floors = scene.floors.filter((f) => f.id === activeFloorId);
@@ -189,6 +201,7 @@ export function SceneCanvas() {
         )}
         <CameraRig scene={scene} />
         <PhotoCapture />
+        {viewMode === 'walk' && <WalkControls start={walkStart} />}
         {viewMode === 'tour' && tourStops.length > 0 && <TourController stops={tourStops} />}
         <EffectComposer multisampling={0}>
           <N8AO halfRes aoRadius={0.9} intensity={2.4} distanceFalloff={0.6} />

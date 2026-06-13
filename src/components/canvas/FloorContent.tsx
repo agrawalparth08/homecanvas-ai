@@ -8,6 +8,7 @@ import { buildWallNetwork } from '@lib/geometry/walls';
 import type { Floor, FurnitureObject } from '@lib/scene/schemas';
 import { assetUrl, fetchAssetManifest } from '../../api';
 import { useEditor, type Selection } from '../../store/editor-store';
+import { DraggableFurniture } from './DraggableFurniture';
 import { bufferDataToGeometry, boundaryToFloorGeometry } from './geometry-helpers';
 import { GltfErrorBoundary, GltfFurniture } from './GltfFurniture';
 import { pick, TRIM_MATERIAL } from './materials';
@@ -152,17 +153,51 @@ function StairMeshes({ floor, materials }: { floor: Floor; materials: FloorConte
   );
 }
 
-function FurnitureMeshes({ floor, materials }: { floor: Floor; materials: FloorContentProps['materials'] }) {
+function FurnitureMeshes({
+  floor,
+  materials,
+  elevation,
+}: {
+  floor: Floor;
+  materials: FloorContentProps['materials'];
+  elevation: number;
+}) {
   const { onSelect, isSelected } = useSelect();
+  // Drag-to-move only in the real editor — when a PickProvider override is
+  // present (tracing/verify 3D preview) selection is local, so we keep furniture
+  // static there rather than committing transform patches to the main store.
+  const override = useContext(PickProvider);
   const { data: assets } = useQuery({ queryKey: ['asset-manifest'], queryFn: fetchAssetManifest, staleTime: Infinity });
   const models = assets?.models ?? {};
   return (
     <>
       {floor.objects.map((obj: FurnitureObject) => {
-        const procedural = (
-          <ProceduralFurniture object={obj} materials={materials} selected={isSelected(obj.id)} />
-        );
+        const selected = isSelected(obj.id);
+        const procedural = <ProceduralFurniture object={obj} materials={materials} selected={selected} />;
         const model = obj.assetRef ? models[obj.assetRef] : undefined;
+        const visual = model ? (
+          // CC0 glTF if it's in the cache; both Suspense (loading) and the
+          // error boundary (parse/network failure) fall back to procedural.
+          <GltfErrorBoundary fallback={procedural}>
+            <Suspense fallback={procedural}>
+              <GltfFurniture url={assetUrl(model.file)} object={obj} />
+            </Suspense>
+          </GltfErrorBoundary>
+        ) : (
+          procedural
+        );
+
+        // The selected piece becomes click-drag movable: DraggableFurniture
+        // applies its own position/rotation and commits ONE transform_object
+        // patch on release. Unselected pieces stay static; their onClick selects
+        // them, promoting them into the draggable branch on the next render.
+        if (selected && !override) {
+          return (
+            <DraggableFurniture key={obj.id} object={obj} floor={floor} floorElevation={elevation}>
+              {visual}
+            </DraggableFurniture>
+          );
+        }
         return (
           <group
             key={obj.id}
@@ -170,17 +205,7 @@ function FurnitureMeshes({ floor, materials }: { floor: Floor; materials: FloorC
             rotation={[0, obj.transform.rotationY, 0]}
             onClick={onSelect({ type: 'furniture', id: obj.id })}
           >
-            {model ? (
-              // CC0 glTF if it's in the cache; both Suspense (loading) and the
-              // error boundary (parse/network failure) fall back to procedural.
-              <GltfErrorBoundary fallback={procedural}>
-                <Suspense fallback={procedural}>
-                  <GltfFurniture url={assetUrl(model.file)} object={obj} />
-                </Suspense>
-              </GltfErrorBoundary>
-            ) : (
-              procedural
-            )}
+            {visual}
           </group>
         );
       })}
@@ -238,7 +263,7 @@ export function FloorContent({ floor, elevation, materials }: FloorContentProps)
       <WallMeshes floor={floor} materials={materials} />
       <RoomSurfaces floor={floor} materials={materials} />
       <StairMeshes floor={floor} materials={materials} />
-      <FurnitureMeshes floor={floor} materials={materials} />
+      <FurnitureMeshes floor={floor} materials={materials} elevation={elevation} />
       <FloorLights floor={floor} />
     </group>
   );

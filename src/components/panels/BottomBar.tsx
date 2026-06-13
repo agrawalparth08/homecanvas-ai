@@ -111,8 +111,8 @@ export function BottomBar() {
         </Seg>
       </div>
       {viewMode === 'walk' && (
-        <span id="walk-start" className="rounded-md bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent">
-          Click to walk · Esc exits
+        <span className="rounded-md bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent">
+          Drag to look · WASD to move
         </span>
       )}
 

@@ -153,15 +153,15 @@ const DATA = {
       { t: "DXF → PrimitivePlan → HomeScene wiring (one call)", s: "done" },
       { t: "POST /api/private-home/build-scene endpoint → open in verify wizard", s: "done", note: "live: DXF file or PrimitivePlan → validated HomeScene" },
       { t: "Scale-aware px→mm thresholds + detectRooms interval-coverage (false-merge fix)", s: "done", note: "interval-coverage live; spine scales to mm before detectRooms / healWalls" },
-      { t: "Path A — DWG: install libredwg, wire convertDwgToDxf, layer-aware DXF rewrite (angled / arc / INSERT)", s: "doing" },
+      { t: "Path A — DWG: install libredwg, wire convertDwgToDxf, layer-aware DXF rewrite (angled / arc / INSERT)", s: "done", note: "libredwg installed; DWG→DXF; layer-aware parse wired; REAL penthouse → valid 60-room scene (851 walls). Next: double-line→centerline collapse to de-segment." },
       { t: "Path A — hybrid angled-wall room detection (polygon-subdivision fallback)", s: "todo" },
-      { t: "Path B — vector-PDF-first extraction → scene (most PDFs are vector ≈ CAD)", s: "todo" },
+      { t: "Path B — vector-PDF-first extraction → scene (most PDFs are vector ≈ CAD)", s: "done", note: "color-features + pdf-vector core built + tested (19 tests); PDF-upload→segments UI wiring pending" },
       { t: "Path B — raster CV (OpenCV worker) + auto-scale from OCR dimensions", s: "todo" },
       { t: "Path Z — auto-parse the section / elevation PDF for wall heights", s: "todo" } ] },
     { id: "IX", name: "3D interaction & furniture", color: "#5ad0ff", tasks: [
-      { t: "Move furniture in 3D by clicking & dragging (drag on the floor plane, collision-aware)", s: "todo" },
-      { t: "Expand the furniture / house-items library (more placeable pieces)", s: "todo" },
-      { t: "Walk & Tour mode: smoother pan + easier movement (WASD / look controls)", s: "todo" } ] }
+      { t: "Move furniture in 3D by clicking & dragging (drag on the floor plane, collision-aware)", s: "doing", note: "drag math (floor-plane projection + collision snap) built + tested; R3F canvas wiring next" },
+      { t: "Expand the furniture / house-items library (more placeable pieces)", s: "doing", note: "+10 items defined (extra-catalog); merge into the placeable catalog next" },
+      { t: "Walk & Tour mode: smoother pan + easier movement (WASD / look controls)", s: "doing", note: "walk/tour camera logic (WASD step + eased tour) built + tested; R3F wiring next" } ] }
   ]
 };
 

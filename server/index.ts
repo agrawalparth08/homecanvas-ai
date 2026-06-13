@@ -4,7 +4,9 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Hono } from 'hono';
 import { detectPrivateHomeFiles } from '../lib/fixtures/private-home';
-import { autoTraceDxf } from '../lib/extraction/auto-trace';
+import { autoTraceDxf, autoTraceDxfToScene } from '../lib/extraction/auto-trace';
+import { buildSceneFromPrimitives } from '../lib/extraction/build-scene';
+import { parsePrimitivePlan } from '../lib/extraction/primitive-plan';
 import { bridgeEnabled, readResult, writeRequest } from './bridge';
 import { autoAnswer, bridgeAutoEnabled } from './bridge-auto';
 import { buildSceneExport } from './export';
@@ -126,6 +128,42 @@ app.post('/api/private-home/auto-trace', async (c) => {
   try {
     const res = autoTraceDxf(await readFile(abs, 'utf8'), { minArea: 100 * 100 });
     return c.json({ ok: true, count: res.rooms.length, unitsToMm: res.unitsToMm, rooms: res.rooms });
+  } catch (e) {
+    return c.json({ ok: false, reason: (e as Error).message });
+  }
+});
+
+// Build a full HomeScene from a CAD file (DXF) or a posted PrimitivePlan, via the
+// shared spine (buildSceneFromPrimitives). Returns a validated scene the verify
+// wizard opens for correction instead of starting blank.
+app.post('/api/private-home/build-scene', async (c) => {
+  let body: { filePath?: string; plan?: unknown };
+  try {
+    body = (await c.req.json()) as { filePath?: string; plan?: unknown };
+  } catch {
+    return c.json({ ok: false, reason: 'invalid JSON body' }, 400);
+  }
+  const opts = { id: 'extracted', name: 'Imported home', now: new Date().toISOString() };
+  try {
+    let scene;
+    if (body.filePath) {
+      const abs = resolvePrivateFile(body.filePath);
+      if (!abs || !existsSync(abs)) return c.json({ ok: false, reason: 'file not found' }, 404);
+      if (!body.filePath.toLowerCase().endsWith('.dxf')) {
+        return c.json({ ok: false, reason: 'build-scene from a file currently supports DXF (clean CAD). For PDFs/scans, use the tracing wizard.' });
+      }
+      scene = autoTraceDxfToScene(await readFile(abs, 'utf8'), opts);
+    } else if (body.plan !== undefined) {
+      scene = buildSceneFromPrimitives(parsePrimitivePlan(body.plan), opts);
+    } else {
+      return c.json({ ok: false, reason: 'provide a `filePath` (.dxf) or a `plan` (PrimitivePlan)' }, 400);
+    }
+    const parsed = HomeSceneSchema.safeParse(scene);
+    if (!parsed.success) return c.json({ ok: false, reason: 'built scene failed schema validation', detail: parsed.error.message }, 422);
+    const issues = validateScene(parsed.data);
+    if (hasErrors(issues)) return c.json({ ok: false, reason: 'built scene has geometry errors', issues: issues.filter((i) => i.severity === 'error') }, 422);
+    const floor = parsed.data.floors[0]!;
+    return c.json({ ok: true, scene: parsed.data, summary: { rooms: floor.rooms.length, walls: floor.walls.length, openings: floor.openings.length } });
   } catch (e) {
     return c.json({ ok: false, reason: (e as Error).message });
   }

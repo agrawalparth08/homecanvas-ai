@@ -151,13 +151,17 @@ const DATA = {
       { t: "PrimitivePlan contract (zod): any-angle wall segments, rect|polygon room hints", s: "done" },
       { t: "buildSceneFromPrimitives spine → validated HomeScene (rect-hint + CAD-segment paths)", s: "done", note: "my-home regression-verified byte-identical" },
       { t: "DXF → PrimitivePlan → HomeScene wiring (one call)", s: "done" },
-      { t: "POST /api/private-home/build-scene endpoint → open in verify wizard", s: "doing" },
-      { t: "Scale-aware px→mm thresholds + detectRooms interval-coverage (false-merge fix)", s: "todo" },
+      { t: "POST /api/private-home/build-scene endpoint → open in verify wizard", s: "done", note: "live: DXF file or PrimitivePlan → validated HomeScene" },
+      { t: "Scale-aware px→mm thresholds + detectRooms interval-coverage (false-merge fix)", s: "doing" },
       { t: "Path A — DWG: install libredwg, wire convertDwgToDxf, layer-aware DXF rewrite (angled / arc / INSERT)", s: "todo" },
       { t: "Path A — hybrid angled-wall room detection (polygon-subdivision fallback)", s: "todo" },
       { t: "Path B — vector-PDF-first extraction → scene (most PDFs are vector ≈ CAD)", s: "todo" },
       { t: "Path B — raster CV (OpenCV worker) + auto-scale from OCR dimensions", s: "todo" },
-      { t: "Path Z — auto-parse the section / elevation PDF for wall heights", s: "todo" } ] }
+      { t: "Path Z — auto-parse the section / elevation PDF for wall heights", s: "todo" } ] },
+    { id: "IX", name: "3D interaction & furniture", color: "#5ad0ff", tasks: [
+      { t: "Move furniture in 3D by clicking & dragging (drag on the floor plane, collision-aware)", s: "todo" },
+      { t: "Expand the furniture / house-items library (more placeable pieces)", s: "todo" },
+      { t: "Walk & Tour mode: smoother pan + easier movement (WASD / look controls)", s: "todo" } ] }
   ]
 };
 

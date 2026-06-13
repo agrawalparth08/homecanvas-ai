@@ -31,7 +31,7 @@ import {
 import { validateScene } from '../lib/scene/validation';
 import { DEFAULT_EXTERNAL_WALL_MM, DEFAULT_PARTITION_WALL_MM, DEFAULT_PARAPET_HEIGHT_MM } from '../lib/geometry/constants';
 import { matchWindowToWall } from '../lib/extraction/geometry';
-import { buildArrangement, exteriorWall, wallBetween, type ArrRoom, type WallSeg } from './lib-arrangement';
+import { buildArrangement, exteriorWall, wallBetween, type ArrRoom, type WallSeg } from '../lib/geometry/arrangement';
 
 const FLOOR_H = 3300;
 const WALL_H = 3000;

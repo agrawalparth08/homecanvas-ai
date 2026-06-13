@@ -35,7 +35,14 @@ export function parseDxf(dxfText: string, opts: { axisTol?: number; minLen?: num
   const tol = opts.axisTol ?? 1;
   const minLen = opts.minLen ?? 1;
   const helper = new Helper(dxfText);
-  const entities = (helper.denormalised ?? helper.parsed.entities ?? []) as Ent[];
+  // `helper.denormalised` (block/INSERT expansion) throws on real DWG→DXF files
+  // with a malformed block; degrade to raw parsed entities instead of crashing.
+  let entities: Ent[];
+  try {
+    entities = (helper.denormalised ?? helper.parsed.entities ?? []) as Ent[];
+  } catch {
+    entities = (helper.parsed.entities ?? []) as Ent[];
+  }
   const insUnits = helper.parsed.header?.insUnits ?? 0;
   const unitsToMm = INSUNITS_MM[insUnits] ?? 1;
 

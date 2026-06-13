@@ -36,6 +36,7 @@ import { healWalls } from './heal-walls';
 import { type WallLine } from './rooms-from-walls';
 import { collapseDoubleWalls } from './wall-centerlines';
 import { detectRoomsSealed } from './building-outline';
+import { detectRoomsPolygonal, type WallSeg as PolyWallSeg } from './polygon-rooms';
 import { cloneLibrary } from '../styles/material-library';
 import { DEFAULT_EXTERNAL_WALL_MM, DEFAULT_PARTITION_WALL_MM } from '../geometry/constants';
 import type { PrimitivePlan, PrimRoomHint } from './primitive-plan';
@@ -188,6 +189,21 @@ export function buildSceneFromPrimitives(plan: PrimitivePlan, opts: BuildSceneOp
       const ids = wallRecs.filter((wr) => onRectEdge(wr, r)).map((wr) => wr.id);
       roomBuilds.push({ id, name: `Room ${i + 1}`, kind: 'other', openToSky: false, outer, wallIds: ids });
     });
+    // Hybrid fallback (Path A): axis detection only finds rectangles. When it
+    // recovers nothing but the plan carries angled/diagonal walls, fall back to a
+    // general planar-graph face extractor over ALL wall centerlines (axis +
+    // angled). Gated on rects.length === 0 so axis-aligned plans (the common
+    // case, incl. the penthouse) keep the proven sealed-rect path untouched.
+    if (rects.length === 0 && angled.length > 0) {
+      const segs: PolyWallSeg[] = wallRecs.map((wr) => ({ a: wr.a, b: wr.b }));
+      detectRoomsPolygonal(segs, { snapTol: 30, minArea: 900 * 900 })
+        .filter((pr) => pr.area <= 250e6)
+        .forEach((pr, i) => {
+          const id = slugId('room', `r${i + 1}`, usedIds);
+          const ids = wallRecs.filter((wr) => midpointOnRing(wr, pr.outer)).map((wr) => wr.id);
+          roomBuilds.push({ id, name: `Room ${i + 1}`, kind: 'other', openToSky: false, outer: pr.outer, wallIds: ids });
+        });
+    }
   } else {
     // ---- rect-hint path (raster / traced): planar arrangement merges shared walls ----
     const built = rectHints.map((h, i) => {
@@ -383,6 +399,15 @@ export function buildSceneFromPrimitives(plan: PrimitivePlan, opts: BuildSceneOp
     }
     return false;
   }
+}
+
+/** True if a wall's midpoint lies within `tol` of any edge of the room ring. */
+function midpointOnRing(wr: WallRec, ring: Vec2[], tol = 60): boolean {
+  const m: Vec2 = { x: (wr.a.x + wr.b.x) / 2, y: (wr.a.y + wr.b.y) / 2 };
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    if (projectOntoSeg(m, ring[j]!, ring[i]!).dist <= tol) return true;
+  }
+  return false;
 }
 
 /** Ray-cast point-in-polygon (plan space). */

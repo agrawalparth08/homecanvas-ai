@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { designPackName, designRoomPatch } from '@lib/agent/autodesign';
 import { CATALOG, placeFurnitureInRoom, uniqueFurnitureId, type CatalogKey } from '@lib/furniture/catalog';
+import { autoFurnishRoom } from '@lib/furniture/auto-furnish';
 import { polygonArea } from '@lib/geometry/rooms';
 import { makePatch, type PatchOp } from '@lib/scene/patching';
 import type { FurnitureObject, HomeScene, Material, Room } from '@lib/scene/schemas';
@@ -60,6 +61,23 @@ function RoomExtras({ scene, room }: { scene: HomeScene; room: Room }) {
     if (patch) applyPatch(patch);
   };
 
+  // One-click "fill this room": collision-packed suggested pieces from the full
+  // catalog (all-furniture), each given a fresh id so re-furnishing stacks more.
+  // Note: packs against the pieces it places, not pre-existing ones — drop into
+  // empty rooms for the cleanest result (drag/remove handle any overlap).
+  const furnishRoom = () => {
+    const floor = scene.floors.find((f) => f.rooms.some((r) => r.id === room.id));
+    if (!floor) return;
+    const used = new Set(floor.objects.map((o) => o.id));
+    const pieces = autoFurnishRoom(room).map((p) => {
+      const id = uniqueFurnitureId(used, room.id);
+      used.add(id);
+      return { ...p, id };
+    });
+    if (pieces.length === 0) return;
+    applyPatch(makePatch(`Furnish ${room.name}`, pieces.map((object) => ({ type: 'place_furniture', object }))));
+  };
+
   return (
     <>
       <MaterialSelect
@@ -93,6 +111,14 @@ function RoomExtras({ scene, room }: { scene: HomeScene; room: Room }) {
           </button>
         </div>
       </label>
+      <button
+        onClick={furnishRoom}
+        disabled={locked}
+        title={locked ? 'Unlock the room first' : 'Drop a set of suggested pieces into this room'}
+        className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-panel-border bg-panel px-2 py-2.5 text-xs font-semibold text-neutral-200 transition-colors enabled:hover:border-neutral-700 enabled:hover:text-neutral-100 disabled:opacity-45"
+      >
+        <Icon name="plus" className="text-[15px]" /> Furnish this room
+      </button>
       <button
         onClick={autoDesign}
         disabled={locked}

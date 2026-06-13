@@ -34,6 +34,7 @@ import {
 import { buildArrangement, type ArrRoom, type WallSeg } from '../geometry/arrangement';
 import { healWalls } from './heal-walls';
 import { detectRooms, type WallLine } from './rooms-from-walls';
+import { collapseDoubleWalls } from './wall-centerlines';
 import { cloneLibrary } from '../styles/material-library';
 import { DEFAULT_EXTERNAL_WALL_MM, DEFAULT_PARTITION_WALL_MM } from '../geometry/constants';
 import type { PrimitivePlan, PrimRoomHint } from './primitive-plan';
@@ -150,18 +151,30 @@ export function buildSceneFromPrimitives(plan: PrimitivePlan, opts: BuildSceneOp
 
   if (plan.walls.length > 0) {
     // ---- CAD / segment path: walls are given; detect room rects from them ----
-    for (const w of plan.walls) {
-      const a = scaleV(w.a, s), b = scaleV(w.b, s);
-      addWall(a, b, (w.thickness ?? ext) * (w.thickness ? s : 1), (w.height ?? wallH) * (w.height ? s : 1));
-    }
-    const lines: WallLine[] = [];
+    // Split axis-aligned vs angled, then collapse double-line faces into single
+    // centerlines (CAD draws each wall as two parallel lines; left raw they would
+    // explode into phantom sliver-rooms between the faces).
+    const axisLines: WallLine[] = [];
+    const angled: Array<{ a: Vec2; b: Vec2 }> = [];
     for (const w of plan.walls) {
       const a = scaleV(w.a, s), b = scaleV(w.b, s);
       const dx = Math.abs(b.x - a.x), dy = Math.abs(b.y - a.y);
-      if (dx <= 1 && dy > 1) lines.push({ orient: 'v', coord: (a.x + b.x) / 2, lo: Math.min(a.y, b.y), hi: Math.max(a.y, b.y) });
-      else if (dy <= 1 && dx > 1) lines.push({ orient: 'h', coord: (a.y + b.y) / 2, lo: Math.min(a.x, b.x), hi: Math.max(a.x, b.x) });
+      if (dx <= 1 && dy > 1) axisLines.push({ orient: 'v', coord: (a.x + b.x) / 2, lo: Math.min(a.y, b.y), hi: Math.max(a.y, b.y) });
+      else if (dy <= 1 && dx > 1) axisLines.push({ orient: 'h', coord: (a.y + b.y) / 2, lo: Math.min(a.x, b.x), hi: Math.max(a.x, b.x) });
+      else if (dx > 1 || dy > 1) angled.push({ a, b });
     }
-    const rects = detectRooms(healWalls(lines, { maxGap: 400 }), { coordTol: 10, minArea: 500 * 500 });
+    // heal first (merge each face's collinear fragments + snap), THEN pair faces
+    const centers = collapseDoubleWalls(healWalls(axisLines, { maxGap: 600 }), { maxThickness: 350, defaultThickness: ext });
+    const lines: WallLine[] = [];
+    for (const c of centers) {
+      const a = c.orient === 'v' ? v(c.coord, c.lo) : v(c.lo, c.coord);
+      const b = c.orient === 'v' ? v(c.coord, c.hi) : v(c.hi, c.coord);
+      addWall(a, b, c.thickness, wallH);
+      lines.push({ orient: c.orient, coord: c.coord, lo: c.lo, hi: c.hi });
+    }
+    for (const ag of angled) addWall(ag.a, ag.b, ext, wallH);
+    // bridge door-width gaps so rooms close up instead of leaking to the exterior
+    const rects = detectRooms(healWalls(lines, { maxGap: 1100 }), { coordTol: 10, minArea: 900 * 900 });
     rects.forEach((r, i) => {
       const id = slugId('room', `r${i + 1}`, usedIds);
       const outer = [v(r.x0, r.y0), v(r.x1, r.y0), v(r.x1, r.y1), v(r.x0, r.y1)];

@@ -29,3 +29,6 @@ coverage/
 
 # landing-page local screenshots
 /landing/preview-*.png
+
+# Local Netlify folder
+.netlify

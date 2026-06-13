@@ -1,4 +1,5 @@
 <!doctype html>
+<!-- homecanvas landing · build rev-2026-06-13-seo -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -13,6 +14,65 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='6' fill='%234b46e5'/><path d='M6 12.2 12 7l6 5.2M8 11v6h8v-6M10.7 17v-3h2.6v3' stroke='white' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>" />
+<link rel="canonical" href="https://tryhomecanvas.com/" />
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+<meta name="theme-color" content="#4b46e5" />
+<meta name="author" content="HomeCanvas AI" />
+<!-- Open Graph (extended) -->
+<meta property="og:site_name" content="HomeCanvas AI" />
+<meta property="og:locale" content="en_US" />
+<meta property="og:image" content="https://tryhomecanvas.com/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="HomeCanvas AI — turn a 2D floor plan into an interactive, photoreal 3D home" />
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="HomeCanvas AI — See your home before it's built" />
+<meta name="twitter:description" content="Turn a 2D floor plan into an interactive, photoreal 3D home you can redesign — on your machine." />
+<meta name="twitter:image" content="https://tryhomecanvas.com/og.png" />
+<meta name="twitter:image:alt" content="HomeCanvas AI 2D floor plan to 3D home" />
+<!-- Structured data: Organization + WebSite + SoftwareApplication -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://tryhomecanvas.com/#org",
+      "name": "HomeCanvas AI",
+      "url": "https://tryhomecanvas.com/",
+      "description": "Local-first software that turns 2D floor plans into interactive, photoreal 3D homes you can redesign.",
+      "email": "parth@tryhomecanvas.com"
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://tryhomecanvas.com/#website",
+      "url": "https://tryhomecanvas.com/",
+      "name": "HomeCanvas AI",
+      "inLanguage": "en",
+      "publisher": { "@id": "https://tryhomecanvas.com/#org" }
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://tryhomecanvas.com/#app",
+      "name": "HomeCanvas AI",
+      "applicationCategory": "DesignApplication",
+      "operatingSystem": "Web",
+      "url": "https://tryhomecanvas.com/",
+      "image": "https://tryhomecanvas.com/poster.jpg",
+      "description": "Turn a 2D floor plan into an interactive, photoreal 3D home you can redesign — locally, with no accounts, uploads, or paid APIs.",
+      "featureList": [
+        "2D floor plan to 3D conversion",
+        "Interactive 3D home editing",
+        "Photoreal rendering",
+        "Local-first and privacy-preserving"
+      ],
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+      "publisher": { "@id": "https://tryhomecanvas.com/#org" }
+    }
+  ]
+}
+</script>
 <style>
   :root{
     --bg:#eef0f4; --wash:#f7f6f2; --panel:#ffffff; --border:#e4e6ec;
@@ -22,7 +82,7 @@
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html{scroll-behavior:smooth}
-  body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+  body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;overflow-x:hidden}
   .wrap{max-width:1280px;margin:0 auto;padding:0 48px}
   .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;box-shadow:0 16px 40px -18px rgba(27,29,36,.14)}
   .eyebrow{font-size:13px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:var(--accent)}
@@ -122,10 +182,22 @@
   footer{display:flex;align-items:center;justify-content:space-between;padding:36px 0 44px}
   footer .copy{font-size:13px;color:var(--ink-faint)}
 
+  .faq-list{margin-top:30px;max-width:820px}
+  .faq{border:1px solid var(--border);border-radius:14px;background:var(--panel);margin-bottom:12px;overflow:hidden}
+  .faq summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px 22px;font-size:18px;font-weight:600;color:var(--ink)}
+  .faq summary::-webkit-details-marker{display:none}
+  .faq summary .pm{flex-shrink:0;width:22px;height:22px;position:relative;transition:transform .2s}
+  .faq summary .pm::before,.faq summary .pm::after{content:'';position:absolute;background:var(--accent);border-radius:2px}
+  .faq summary .pm::before{left:0;right:0;top:10px;height:2px}
+  .faq summary .pm::after{top:0;bottom:0;left:10px;width:2px}
+  .faq[open] summary .pm{transform:rotate(180deg)}
+  .faq[open] summary .pm::after{opacity:0}
+  .faq p{padding:0 22px 22px;font-size:16px;line-height:1.6;color:var(--ink-dim);margin:0}
+
   @media (max-width:1024px){
     .wrap{padding:0 24px}
     .navlinks a:not(.navcta){display:none}
-    .hero{flex-direction:column;padding:16px 0 56px;gap:64px}
+    .hero{flex-direction:column;padding:16px 0 56px;gap:56px}
     .hero-copy{width:100%}
     h1{font-size:46px}
     .grid3{grid-template-columns:1fr 1fr}
@@ -136,7 +208,33 @@
     .form{flex-direction:column}
     .btn{justify-content:center}
   }
-  @media (max-width:640px){.grid3{grid-template-columns:1fr}.stage-box{height:300px}.chip{display:none}}
+  @media (max-width:768px){
+    .h2,.cta h2{font-size:28px !important}
+    section{padding:46px 0}
+    .sub{font-size:18px}
+    .demo-video{margin-top:26px}
+    nav{padding:20px 0}
+    .hero .glow1,.hero .glow2,.planlines{display:none}
+  }
+  @media (max-width:640px){
+    .grid3{grid-template-columns:1fr}
+    .stage-box{height:264px}
+    .chip{display:none}
+    .steps{justify-content:flex-start}
+  }
+  @media (max-width:480px){
+    .wrap{padding:0 18px}
+    h1{font-size:34px;letter-spacing:-1px}
+    .sub{font-size:16.5px}
+    .eyebrow{font-size:12px}
+    .field,.btn{height:54px;font-size:16px}
+    .faq summary{font-size:16px;padding:16px 18px}
+    .faq p{padding:0 18px 18px;font-size:15px}
+    .audchip{padding:14px 18px;gap:11px}
+    .audchip b{font-size:16px;white-space:normal}
+    .cta{padding:32px 22px}
+    .logo{font-size:19px}
+  }
 </style>
 </head>
 <body>
@@ -163,8 +261,9 @@
       <h1>See your home <em>before</em> it's built.</h1>
       <p class="sub">Turn a 2D floor plan into an interactive, photoreal 3D home you can redesign — on your machine.</p>
       <div class="form" id="form-hero" style="margin-top:34px">
-        <form method="POST" name="early-access" data-netlify="true" novalidate>
+        <form method="POST" name="early-access" data-netlify="true" netlify-honeypot="bot-field" novalidate>
           <input type="hidden" name="form-name" value="early-access" />
+          <input type="text" name="bot-field" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);left:-9999px" />
           <input class="field" type="email" name="email" placeholder="you@email.com" required aria-label="Email address" />
           <button class="btn" type="submit">Get early access
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13m-5-5 5 5-5 5"/></svg>
@@ -216,7 +315,7 @@
       <div class="step"><span class="ic"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><circle cx="12" cy="12.5" r="3.2"/></svg></span><b>Render it</b></div>
     </div>
 
-    <video class="demo-video" autoplay loop muted playsinline preload="auto" poster="poster.jpg" aria-label="HomeCanvas demo video">
+    <video class="demo-video" width="1920" height="1080" autoplay loop muted playsinline preload="auto" poster="poster.jpg" aria-label="HomeCanvas AI demo: a 2D floor plan converted into an interactive, photoreal 3D home">
       <source src="homecanvas-demo.mp4" type="video/mp4" />
     </video>
   </div>
@@ -309,6 +408,31 @@
   </div>
 </section>
 
+<section class="band" id="faq">
+  <div class="wrap">
+    <div class="eyebrow">FAQ</div>
+    <div class="h2">Questions, answered.</div>
+    <div class="faq-list">
+      <details class="faq"><summary>What is HomeCanvas AI?<span class="pm"></span></summary><p>HomeCanvas AI turns a 2D floor plan into an interactive, photoreal 3D model of your home. You can change materials, furniture and styles, walk through it, and render near-photoreal stills.</p></details>
+      <details class="faq"><summary>Do I have to upload my floor plan anywhere?<span class="pm"></span></summary><p>No. HomeCanvas is local-first: your floor plan and your design stay on your own computer. No accounts, no uploads, and no paid APIs.</p></details>
+      <details class="faq"><summary>Do I need to know 3D software or be a designer?<span class="pm"></span></summary><p>Not at all. If you can point at the rooms on your plan, you can build your home in 3D. You can even ask for changes in plain language, like "add a sofa to the lounge."</p></details>
+      <details class="faq"><summary>What do I start from?<span class="pm"></span></summary><p>Start from a PDF or image of your floor plan and trace it with snapping help. Support for richer CAD files (DWG/DXF) is on the roadmap.</p></details>
+      <details class="faq"><summary>How much does it cost?<span class="pm"></span></summary><p>HomeCanvas is in early access. Join the waitlist and we'll let you in — you'll hear from us the moment it's ready.</p></details>
+      <details class="faq"><summary>When can I use it?<span class="pm"></span></summary><p>We're rolling out access gradually. Add your email to the waitlist and you'll be among the first to get in.</p></details>
+    </div>
+  </div>
+</section>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[
+{"@type":"Question","name":"What is HomeCanvas AI?","acceptedAnswer":{"@type":"Answer","text":"HomeCanvas AI turns a 2D floor plan into an interactive, photoreal 3D model of your home. You can change materials, furniture and styles, walk through it, and render near-photoreal stills."}},
+{"@type":"Question","name":"Do I have to upload my floor plan anywhere?","acceptedAnswer":{"@type":"Answer","text":"No. HomeCanvas is local-first: your floor plan and your design stay on your own computer. No accounts, no uploads, and no paid APIs."}},
+{"@type":"Question","name":"Do I need to know 3D software or be a designer?","acceptedAnswer":{"@type":"Answer","text":"Not at all. If you can point at the rooms on your plan, you can build your home in 3D. You can even ask for changes in plain language, like \"add a sofa to the lounge.\""}},
+{"@type":"Question","name":"What do I start from?","acceptedAnswer":{"@type":"Answer","text":"Start from a PDF or image of your floor plan and trace it with snapping help. Support for richer CAD files (DWG/DXF) is on the roadmap."}},
+{"@type":"Question","name":"How much does it cost?","acceptedAnswer":{"@type":"Answer","text":"HomeCanvas is in early access. Join the waitlist and we'll let you in — you'll hear from us the moment it's ready."}},
+{"@type":"Question","name":"When can I use it?","acceptedAnswer":{"@type":"Answer","text":"We're rolling out access gradually. Add your email to the waitlist and you'll be among the first to get in."}}
+]}
+</script>
+
 <section id="access" style="padding:72px 0 8px">
   <div class="wrap">
     <div class="cta">
@@ -317,8 +441,9 @@
       <h2>See your home in 3D. Get early access.</h2>
       <p>We'll email you the moment it's ready.</p>
       <div class="form" id="form-cta">
-        <form method="POST" name="early-access" data-netlify="true" novalidate>
+        <form method="POST" name="early-access" data-netlify="true" netlify-honeypot="bot-field" novalidate>
           <input type="hidden" name="form-name" value="early-access" />
+          <input type="text" name="bot-field" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);left:-9999px" />
           <input class="field" type="email" name="email" placeholder="you@email.com" required aria-label="Email address" />
           <button class="btn" type="submit">Get early access
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13m-5-5 5 5-5 5"/></svg>

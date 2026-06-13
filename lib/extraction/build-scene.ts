@@ -33,8 +33,9 @@ import {
 } from '../scene/schemas';
 import { buildArrangement, type ArrRoom, type WallSeg } from '../geometry/arrangement';
 import { healWalls } from './heal-walls';
-import { detectRooms, type WallLine } from './rooms-from-walls';
+import { type WallLine } from './rooms-from-walls';
 import { collapseDoubleWalls } from './wall-centerlines';
+import { detectRoomsSealed } from './building-outline';
 import { cloneLibrary } from '../styles/material-library';
 import { DEFAULT_EXTERNAL_WALL_MM, DEFAULT_PARTITION_WALL_MM } from '../geometry/constants';
 import type { PrimitivePlan, PrimRoomHint } from './primitive-plan';
@@ -174,7 +175,12 @@ export function buildSceneFromPrimitives(plan: PrimitivePlan, opts: BuildSceneOp
     }
     for (const ag of angled) addWall(ag.a, ag.b, ext, wallH);
     // bridge door-width gaps so rooms close up instead of leaking to the exterior
-    const rects = detectRooms(healWalls(lines, { maxGap: 1100 }), { coordTol: 10, minArea: 900 * 900 });
+    // seal the footprint perimeter so interior rooms don't leak out through door gaps,
+    // then drop the giant bbox-spanning phantom the seal creates on non-convex /
+    // stray-geometry footprints (no residential room exceeds ~250 m²).
+    const rects = detectRoomsSealed(healWalls(lines, { maxGap: 1100 }), { coordTol: 10, minArea: 900 * 900 }).filter(
+      (r) => (r.x1 - r.x0) * (r.y1 - r.y0) <= 250e6,
+    );
     rects.forEach((r, i) => {
       const id = slugId('room', `r${i + 1}`, usedIds);
       const outer = [v(r.x0, r.y0), v(r.x1, r.y0), v(r.x1, r.y1), v(r.x0, r.y1)];

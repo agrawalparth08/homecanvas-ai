@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import * as THREE from 'three';
 import type { ThreeEvent } from '@react-three/fiber';
 import { collidesWithAny, rectFootprint, worldFootprint } from '@lib/geometry/collision';
@@ -79,6 +79,11 @@ interface DraggableFurnitureProps {
  */
 export function DraggableFurniture({ object, floor, floorElevation, children }: DraggableFurnitureProps) {
   const applyPatch = useEditor((s) => s.applyPatch);
+  const setDraggingObject = useEditor((s) => s.setDraggingObject);
+
+  // Safety net: if this piece unmounts (deselected / scene swap) mid-drag, make
+  // sure the camera lock is released so OrbitControls doesn't stay disabled.
+  useEffect(() => () => setDraggingObject(false), [setDraggingObject]);
 
   // Ephemeral, render-driving drag target in plan mm (null => not dragging).
   const [dragPlan, setDragPlan] = useState<Vec2 | null>(null);
@@ -120,6 +125,10 @@ export function DraggableFurniture({ object, floor, floorElevation, children }: 
   const onPointerDown = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
     draggingRef.current = true;
+    // Lock the orbit camera so dragging moves only the piece, not the whole view
+    // (OrbitControls listens on the canvas natively, so R3F stopPropagation alone
+    // doesn't stop it).
+    setDraggingObject(true);
     (e.target as Element).setPointerCapture?.(e.pointerId);
     // Anchor the drag at the grabbed point so the centre tracks the cursor by a
     // fixed offset (no teleport). We deliberately do NOT setDragPlan here: a press
@@ -142,6 +151,7 @@ export function DraggableFurniture({ object, floor, floorElevation, children }: 
     if (!draggingRef.current) return;
     e.stopPropagation();
     draggingRef.current = false;
+    setDraggingObject(false); // release the camera lock
     (e.target as Element).releasePointerCapture?.(e.pointerId);
     const target = dragPlan;
     setDragPlan(null);

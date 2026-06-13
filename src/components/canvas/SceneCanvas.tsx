@@ -82,9 +82,12 @@ function PhotoCapture() {
 
 function CameraRig({ scene }: { scene: HomeScene }) {
   const viewMode = useEditor((s) => s.viewMode);
+  const draggingObject = useEditor((s) => s.draggingObject);
   const camera = useThree((s) => s.camera);
 
-  const { center, span } = useMemo(() => {
+  // Scene bounds as PRIMITIVES so a furniture edit (which leaves walls untouched)
+  // doesn't churn object identity and re-fire the framing effect below.
+  const bounds = useMemo(() => {
     let maxX = 0;
     let maxY = 0;
     for (const floor of scene.floors) {
@@ -95,15 +98,17 @@ function CameraRig({ scene }: { scene: HomeScene }) {
         }
       }
     }
-    return {
-      center: new THREE.Vector3((maxX / 2) * MM, 0, (-maxY / 2) * MM),
-      span: Math.max(maxX, maxY) * MM,
-    };
+    return { cx: (maxX / 2) * MM, cz: (-maxY / 2) * MM, span: Math.max(maxX, maxY) * MM };
   }, [scene]);
+  // Stable orbit target: changes only when the wall bounds change, NOT on a
+  // furniture move, so OrbitControls' target and the reframe effect stay put.
+  const center = useMemo(() => new THREE.Vector3(bounds.cx, 0, bounds.cz), [bounds.cx, bounds.cz]);
 
   useEffect(() => {
-    // Frame by scene size so larger homes don't clip the camera into a wall.
-    const d = Math.max(8, span);
+    // Frame by scene size so larger homes don't clip the camera into a wall. Runs
+    // on a view-mode change (and a genuine bounds change) but NOT on every edit —
+    // otherwise finishing a furniture drag would snap the camera back to default.
+    const d = Math.max(8, bounds.span);
     if (viewMode === 'top') {
       camera.position.set(center.x, d * 1.4, center.z + 0.01);
       camera.lookAt(center);
@@ -113,14 +118,23 @@ function CameraRig({ scene }: { scene: HomeScene }) {
     } else {
       camera.position.set(center.x, 1.6, center.z);
     }
-  }, [viewMode, camera, center, span]);
+  }, [viewMode, camera, center, bounds.span]);
 
   if (viewMode === 'tour') return null; // TourController owns the camera
   if (viewMode === 'walk') return null; // WalkControls owns the camera (drag-look + WASD)
   if (viewMode === 'top') {
-    return <MapControls makeDefault target={center} enableRotate={false} />;
+    return <MapControls makeDefault target={center} enableRotate={false} enabled={!draggingObject} />;
   }
-  return <OrbitControls makeDefault target={center} maxPolarAngle={Math.PI / 2 - 0.02} minDistance={1.5} maxDistance={Math.max(40, span * 3)} />;
+  return (
+    <OrbitControls
+      makeDefault
+      target={center}
+      enabled={!draggingObject}
+      maxPolarAngle={Math.PI / 2 - 0.02}
+      minDistance={1.5}
+      maxDistance={Math.max(40, bounds.span * 3)}
+    />
+  );
 }
 
 export function SceneCanvas() {

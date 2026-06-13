@@ -42,6 +42,8 @@ interface EditorState {
   redoStack: CommitLogEntry[];
   lastErrors: ValidationIssue[];
   activeVariantId: string | null;
+  /** True while a furniture piece is being click-dragged; locks the orbit camera. */
+  draggingObject: boolean;
 
   loadProject: (projectId: ProjectId) => Promise<void>;
   startFromSample: () => void;
@@ -53,6 +55,7 @@ interface EditorState {
   select: (selection: Selection | null) => void;
   setActiveFloor: (floorId: string) => void;
   setViewMode: (mode: ViewMode) => void;
+  setDraggingObject: (dragging: boolean) => void;
   setShowBefore: (show: boolean) => void;
   /** Spatial before/after wipe: 'off' = normal single view, 'slider' = clipped dual render. */
   compareMode: CompareMode;
@@ -125,6 +128,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   redoStack: [],
   lastErrors: [],
   activeVariantId: null,
+  draggingObject: false,
   compareMode: 'off',
   sliderPos: 0.5,
   capturePhoto: null,
@@ -236,6 +240,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   select: (selection) => set({ selection }),
   setActiveFloor: (floorId) => set({ activeFloorId: floorId, selection: null, tourIndex: 0 }),
   setViewMode: (viewMode) => set({ viewMode }),
+  setDraggingObject: (draggingObject) => set({ draggingObject }),
   setShowBefore: (showBefore) => set({ showBefore }),
   setCompareMode: (compareMode) => set({ compareMode }),
   setSliderPos: (sliderPos) => set({ sliderPos: sliderPos < 0 ? 0 : sliderPos > 1 ? 1 : sliderPos }),

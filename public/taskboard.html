@@ -63,7 +63,7 @@
 <script>
 // ── Task data (single source — edited as the build progresses) ──────────────
 const DATA = {
-  project: "HomeCanvas AI", updatedAt: "2026-06-11",
+  project: "HomeCanvas AI", updatedAt: "2026-06-13",
   phases: [
     { id: "P0", name: "Foundation & scaffold", color: "#8a94a6", tasks: [
       { t: "Repo scaffold: Vite 8 + Hono sidecar, TS strict, Tailwind, Vitest", s: "done" },
@@ -125,14 +125,39 @@ const DATA = {
       { t: "Apply-remap: lock-gated migration (preserve ids, surface added/unresolved, never silent replace)", s: "done", note: "pure + tested" },
       { t: "Extraction review heuristics (coverage, suspicious dims, impossible placement)", s: "done", note: "pure + tested" },
       { t: "GeometryCorrectionProposal flow (review → proposal → patch via commit)", s: "done", note: "MockProvider.proposeCorrections; lock-safe" },
-      { t: "Robust raster-CV extraction for scanned plans + CubiCasa5k booster + diff/merge UI", s: "todo", note: "research-grade; assisted wizard is the reliable path today" } ] },
+      { t: "Robust raster-CV extraction for scanned plans + CubiCasa5k booster + diff/merge UI", s: "todo", note: "now folded into the EX overhaul (Path B): vector-PDF-first + OpenCV raster CV" } ] },
     { id: "P7", name: "Polish & export", color: "#ff5a5a", tasks: [
       { t: "Scene JSON export (pure builder + /export endpoint + button, re-importable)", s: "done" },
       { t: "Room-wise design boards (buildRoomBoards) + live Variants page (palette/materials/furniture)", s: "done" },
       { t: "Variant side-by-side: scene diff summary (diffScenes) + recoloured-vs-baseline badges", s: "done" },
       { t: "Before/After spatial slider: fixed-camera dual-render clip wipe + draggable handle", s: "done", note: "built; GPU visual unverified headless — verify on M4 browser" },
       { t: "Path-traced Photo Mode (three-gpu-pathtracer + oidn) — needs live WebGL2 to build+verify", s: "todo", note: "interface ready; best built with the screen visible" },
-      { t: "Perf pass (instancing) + optional Blender Cycles adapter", s: "todo" } ] }
+      { t: "Perf pass (instancing) + optional Blender Cycles adapter", s: "todo" } ] },
+    { id: "P8", name: "Editing, errors & polish", color: "#7bd88f", tasks: [
+      { t: "Pillars deletable with a structural-instability warning (Inspector + 2D tracer)", s: "done" },
+      { t: "Stairs: move / rotate / turn / kind / material (shared StairControls, 2D + Inspector)", s: "done" },
+      { t: "Editable room names (Inspector + tracing)", s: "done" },
+      { t: "Photo Mode fixes: working view buttons + legible Save-photo button", s: "done" },
+      { t: "App-wide error surface: store + toast overlay + boundary + global handlers", s: "done" },
+      { t: "De-slop pass: Button primitive, icon set, dialogs, segmented controls", s: "done" } ] },
+    { id: "LP", name: "Demo video & launch", color: "#6f8cff", tasks: [
+      { t: "Demo video — Remotion + ElevenLabs voice, CSS-3D dollhouse, < 60s", s: "done" },
+      { t: "Landing page (tryhomecanvas.com): CSS-3D hero, autoplay demo, Sarvam theme", s: "done" },
+      { t: "SEO: JSON-LD, sitemap + robots, OG card, FAQ + schema, mobile-responsive", s: "done", note: "audited with the claude-seo playbooks; verified live" },
+      { t: "Split website into its own repo (homecanvas-landing) + Netlify git auto-deploy", s: "done" },
+      { t: "Waitlist email capture → FormSubmit (homecanvasai@gmail.com, hashed alias, activated)", s: "done", note: "Netlify Forms was broken on this site; switched to FormSubmit, delivery verified" } ] },
+    { id: "EX", name: "2D→3D extraction overhaul", color: "#e0913a", tasks: [
+      { t: "Plan locked + eng-reviewed (docs/PLAN-2d-to-3d.md): one spine, two front doors (CAD + no-CAD)", s: "done" },
+      { t: "PrimitivePlan contract (zod): any-angle wall segments, rect|polygon room hints", s: "done" },
+      { t: "buildSceneFromPrimitives spine → validated HomeScene (rect-hint + CAD-segment paths)", s: "done", note: "my-home regression-verified byte-identical" },
+      { t: "DXF → PrimitivePlan → HomeScene wiring (one call)", s: "done" },
+      { t: "POST /api/private-home/build-scene endpoint → open in verify wizard", s: "doing" },
+      { t: "Scale-aware px→mm thresholds + detectRooms interval-coverage (false-merge fix)", s: "todo" },
+      { t: "Path A — DWG: install libredwg, wire convertDwgToDxf, layer-aware DXF rewrite (angled / arc / INSERT)", s: "todo" },
+      { t: "Path A — hybrid angled-wall room detection (polygon-subdivision fallback)", s: "todo" },
+      { t: "Path B — vector-PDF-first extraction → scene (most PDFs are vector ≈ CAD)", s: "todo" },
+      { t: "Path B — raster CV (OpenCV worker) + auto-scale from OCR dimensions", s: "todo" },
+      { t: "Path Z — auto-parse the section / elevation PDF for wall heights", s: "todo" } ] }
   ]
 };
 

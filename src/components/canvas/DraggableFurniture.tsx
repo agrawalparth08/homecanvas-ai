@@ -16,6 +16,7 @@ import { useEditor } from '../../store/editor-store';
 
 const MM = 0.001;
 const DRAG_COLOR = '#d8a25a';
+const ROT_COLOR = '#4f8cff';
 
 /**
  * Coordinate bridge. The scene graph is plan-space mm with world placement
@@ -91,6 +92,10 @@ export function DraggableFurniture({ object, floor, floorElevation, children }: 
   // Plan-mm offset from the grabbed point to the piece centre, so the drag tracks
   // the grab point rather than teleporting the centre under the cursor.
   const grabOffsetRef = useRef<Vec2>({ x: 0, y: 0 });
+  // Ephemeral rotation preview (radians) while spinning the rotate ring; null = idle.
+  const [dragRot, setDragRot] = useState<number | null>(null);
+  const rotatingRef = useRef(false);
+  const rotStartRef = useRef<{ grabAngle: number; startRot: number }>({ grabAngle: 0, startRot: 0 });
 
   const size: Size2 = { w: object.dimensions.w, d: object.dimensions.d };
   const bounds = useMemo(() => {
@@ -169,6 +174,53 @@ export function DraggableFurniture({ object, floor, floorElevation, children }: 
     );
   };
 
+  /** World-XZ angle of the cursor's floor hit relative to the piece centre. */
+  const worldAngleAt = (e: ThreeEvent<PointerEvent>): number | null => {
+    const { origin: o, direction: d } = e.ray;
+    const hit = screenToFloor({ x: o.x, y: o.y, z: o.z }, { x: d.x, y: d.y, z: d.z }, floorY);
+    if (!hit) return null;
+    // screenToFloor reports {x: world.x, y: world.z}; the piece centre in that
+    // frame is (x*MM, -y*MM) since world.z = -plan.y (see FloorContent).
+    return Math.atan2(hit.y - -object.transform.y * MM, hit.x - object.transform.x * MM);
+  };
+
+  const onRotDown = (e: ThreeEvent<PointerEvent>) => {
+    e.stopPropagation(); // grab the ring => rotate, never start a position drag
+    rotatingRef.current = true;
+    setDraggingObject(true); // lock the orbit camera while spinning
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+    const a = worldAngleAt(e);
+    if (a != null) rotStartRef.current = { grabAngle: a, startRot: object.transform.rotationY };
+  };
+
+  const onRotMove = (e: ThreeEvent<PointerEvent>) => {
+    if (!rotatingRef.current) return;
+    e.stopPropagation();
+    const a = worldAngleAt(e);
+    if (a == null) return;
+    // Raising rotationY spins a material point clockwise in world XZ, so to keep
+    // the grabbed point under the cursor we add (grabAngle - current).
+    setDragRot(rotStartRef.current.startRot + (rotStartRef.current.grabAngle - a));
+  };
+
+  const endRot = (e: ThreeEvent<PointerEvent>) => {
+    if (!rotatingRef.current) return;
+    e.stopPropagation();
+    rotatingRef.current = false;
+    setDraggingObject(false); // release the camera lock
+    (e.target as Element).releasePointerCapture?.(e.pointerId);
+    const target = dragRot;
+    setDragRot(null);
+    if (target == null) return;
+    const norm = Math.atan2(Math.sin(target), Math.cos(target)); // wrap to [-π, π]
+    if (norm === object.transform.rotationY) return; // unmoved: no commit/undo entry
+    applyPatch(
+      makePatch(`Rotate ${object.name}`, [
+        { type: 'transform_object', objectId: object.id, transform: { rotationY: norm } },
+      ]),
+    );
+  };
+
   // While dragging, preview the piece at the snapped spot; otherwise it sits at
   // its committed transform (FloorContent already renders it there too, so the
   // ghost rides on top until release commits the new position).
@@ -176,17 +228,30 @@ export function DraggableFurniture({ object, floor, floorElevation, children }: 
 
   return (
     <group>
-      {/* Interactive piece: pointer-down here starts the drag. */}
+      {/* Interactive piece: position + live rotation (dragRot while spinning). The
+          inner group carries the DRAG handlers on the body; the RotateRing sibling
+          carries the ROTATE handlers — so grabbing the body moves, grabbing the
+          ring spins. */}
       <group
         position={[object.transform.x * MM, object.transform.elevation * MM, -object.transform.y * MM]}
-        rotation={[0, object.transform.rotationY, 0]}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
+        rotation={[0, dragRot ?? object.transform.rotationY, 0]}
         visible={dragPlan === null}
       >
-        {children}
+        <group
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+        >
+          {children}
+        </group>
+        <RotateRing
+          size={size}
+          onPointerDown={onRotDown}
+          onPointerMove={onRotMove}
+          onPointerUp={endRot}
+          onPointerCancel={endRot}
+        />
       </group>
 
       {/* Ghost (footprint marker + a translucent copy of the piece) that tracks
@@ -233,5 +298,42 @@ function FootprintGhost({ size, valid }: { size: Size2; valid: boolean }) {
         side={THREE.DoubleSide}
       />
     </mesh>
+  );
+}
+
+type RingHandler = (e: ThreeEvent<PointerEvent>) => void;
+
+/**
+ * Rotate gizmo for the selected piece: a flat ring on the floor (grab anywhere to
+ * spin) plus a knob at the piece's local front (-Z) that doubles as a heading
+ * marker. Sized just outside the footprint. Drawn depth-test-off so it stays
+ * visible through the piece, and carries the rotate pointer handlers on the group
+ * so events from either mesh reach them.
+ */
+function RotateRing({
+  size,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
+  onPointerCancel,
+}: {
+  size: Size2;
+  onPointerDown: RingHandler;
+  onPointerMove: RingHandler;
+  onPointerUp: RingHandler;
+  onPointerCancel: RingHandler;
+}) {
+  const r = (Math.max(size.w, size.d) / 2) * MM + 0.14; // ring radius (m), just outside the piece
+  return (
+    <group onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} renderOrder={21}>
+        <torusGeometry args={[r, 0.02, 10, 56]} />
+        <meshBasicMaterial color={ROT_COLOR} transparent opacity={0.85} depthTest={false} />
+      </mesh>
+      <mesh position={[0, 0.05, -r]} renderOrder={22}>
+        <sphereGeometry args={[0.06, 16, 16]} />
+        <meshBasicMaterial color={ROT_COLOR} depthTest={false} />
+      </mesh>
+    </group>
   );
 }

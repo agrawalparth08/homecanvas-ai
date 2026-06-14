@@ -218,7 +218,11 @@ export function SceneCanvas() {
         {viewMode === 'walk' && <WalkControls start={walkStart} />}
         {viewMode === 'tour' && tourStops.length > 0 && <TourController stops={tourStops} />}
         <EffectComposer multisampling={0}>
-          <N8AO halfRes aoRadius={0.9} intensity={2.4} distanceFalloff={0.6} />
+          {/* Full-res AO (no halfRes): halfRes uses checkerboard + an accumulation
+              target that converges over frames while the camera is still — which
+              smears a dark trail when furniture is dragged/rotated under a static
+              camera. Full-res recomputes AO cleanly every frame. */}
+          <N8AO aoRadius={0.9} intensity={2.4} distanceFalloff={0.6} />
           <SMAA />
           <Bloom intensity={0.18} luminanceThreshold={1.1} mipmapBlur />
           <Vignette eskil={false} offset={0.18} darkness={0.55} />

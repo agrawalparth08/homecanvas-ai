@@ -95,7 +95,9 @@ export function ScenePreview3D({
           <OrbitControls makeDefault target={center} maxPolarAngle={Math.PI / 2 - 0.02} minDistance={1.5} maxDistance={Math.max(40, span * 3)} />
         )}
         <EffectComposer multisampling={0}>
-          <N8AO halfRes aoRadius={0.9} intensity={2.2} distanceFalloff={0.6} />
+          {/* Full-res AO: halfRes accumulates across frames under a still camera,
+              which smears trails when geometry moves (see SceneCanvas note). */}
+          <N8AO aoRadius={0.9} intensity={2.2} distanceFalloff={0.6} />
           <SMAA />
         </EffectComposer>
       </Suspense>

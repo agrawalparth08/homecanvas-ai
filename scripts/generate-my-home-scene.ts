@@ -136,6 +136,30 @@ function buildFloor(
   auto = false,
   features: PlanFeatures = { windows: [], pillars: [] },
 ): Floor {
+  // Clean tracing artifacts before building geometry:
+  //  (1) drop degenerate slivers — a strip thinner than SLIVER_MM is a tracing
+  //      seam, not a real space (e.g. the 0.5m-wide upper-terrace fragment);
+  //  (2) treat same-kind/same-name OPEN rooms (a terrace traced as several
+  //      abutting rects) as ONE merged region, so the open slab isn't carved up
+  //      by parapet dividers. Shared mergeId => the wall between them is dropped.
+  const SLIVER_MM = 800;
+  rooms = rooms.filter((r) => r.isVoid || Math.min(r.rect.x1 - r.rect.x0, r.rect.y1 - r.rect.y0) >= SLIVER_MM);
+  const mergeId = new Map<string, string>();
+  {
+    const byKey = new Map<string, RoomRect[]>();
+    for (const r of rooms) {
+      if (r.isVoid || !roomOpen(r)) continue;
+      const key = `${r.kind}|${r.name}`;
+      const arr = byKey.get(key) ?? [];
+      arr.push(r);
+      byKey.set(key, arr);
+    }
+    for (const arr of byKey.values()) {
+      if (arr.length > 1) for (const r of arr) mergeId.set(r.id, arr[0]!.id);
+    }
+  }
+  const mergeOf = (rid: string | null): string | null => (rid != null ? mergeId.get(rid) ?? rid : rid);
+
   // CUT OUT voids stay in the wall arrangement (so they're enclosed by
   // full-height envelope walls) but get NO floor/ceiling — a real opening, not
   // a floored court. Only real rooms become Room objects with surfaces.
@@ -152,6 +176,9 @@ function buildFloor(
   const segWallId = new Map<WallSeg, string>();
   let wn = 0;
   for (const s of segs) {
+    // Suppress walls interior to a merged open room (terrace sub-rects) so the
+    // open slab reads as one clean surface, not a grid of parapet dividers.
+    if (s.sideA && s.sideB && mergeOf(s.sideA) === mergeOf(s.sideB)) continue;
     const wall = segToWall(`w-${id}-${(++wn).toString().padStart(3, '0')}`, id, s);
     // parapet height only if NO indoor room touches the wall (terrace rail / open edge)
     const indoor = [s.sideA, s.sideB].some((rid) => rid && !openIds.has(rid));

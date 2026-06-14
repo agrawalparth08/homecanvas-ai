@@ -107,6 +107,27 @@ export async function autoTracePrivate(filePath: string): Promise<{ ok: boolean;
   }
 }
 
+export interface BuildSceneResult {
+  ok: boolean;
+  scene?: HomeScene;
+  summary?: { rooms: number; walls: number; openings: number };
+  reason?: string;
+}
+
+/** Build a validated HomeScene from a client-extracted PrimitivePlan (no-CAD path). */
+export async function buildSceneFromPlan(plan: unknown): Promise<BuildSceneResult> {
+  try {
+    const res = await fetch('/api/private-home/build-scene', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plan }),
+    });
+    return (await res.json()) as BuildSceneResult;
+  } catch (e) {
+    return { ok: false, reason: (e as Error).message };
+  }
+}
+
 /** Upload a plan/photo into private-home-inputs/raw/ (local copy only). */
 export async function uploadPrivateFile(name: string, dataUrl: string): Promise<string | null> {
   try {

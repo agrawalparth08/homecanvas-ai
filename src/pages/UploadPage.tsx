@@ -1,7 +1,10 @@
 import { useRef, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
-import { autoTracePrivate, fetchPrivateManifest, uploadPrivateFile } from '../api';
+import { autoTracePrivate, buildSceneFromPlan, fetchPrivateManifest, privateFileUrl, uploadPrivateFile } from '../api';
+import { loadRasterImage } from '../lib/pdf';
+import { planFromImage, planFromPdf } from '../lib/import-plan';
+import { useEditor } from '../store/editor-store';
 
 function readAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -21,11 +24,40 @@ export function UploadPage() {
   const [drag, setDrag] = useState(false);
   const [autoMsg, setAutoMsg] = useState<Record<string, string>>({});
   const inputRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
+  const loadSceneObject = useEditor((s) => s.loadSceneObject);
 
   async function runAuto(id: string, filePath: string) {
     setAutoMsg((m) => ({ ...m, [id]: 'Auto-tracing…' }));
     const r = await autoTracePrivate(filePath);
     setAutoMsg((m) => ({ ...m, [id]: r.ok ? `auto-traced ${r.count} rooms — open the wizard to refine` : (r.reason ?? 'failed') }));
+  }
+
+  // No-CAD import: extract a PrimitivePlan in the browser (vector-PDF or raster
+  // image), build a validated scene via the spine endpoint, load it, open 3D.
+  async function runImport(id: string, filePath: string, isPdf: boolean) {
+    setAutoMsg((m) => ({ ...m, [id]: 'Extracting…' }));
+    try {
+      const url = privateFileUrl(filePath);
+      let plan;
+      if (isPdf) {
+        plan = await planFromPdf(url);
+      } else {
+        const img = await loadRasterImage(url);
+        // No calibration yet: assume a ~12m-wide plan; refine scale in the wizard.
+        const mmPerPx = 12000 / Math.max(1, img.widthPx);
+        plan = await planFromImage(img.dataUrl, mmPerPx);
+      }
+      const r = await buildSceneFromPlan(plan);
+      if (!r.ok || !r.scene) {
+        setAutoMsg((m) => ({ ...m, [id]: r.reason ?? 'could not build a scene' }));
+        return;
+      }
+      loadSceneObject('my-home', r.scene);
+      navigate('/design/my-home');
+    } catch (e) {
+      setAutoMsg((m) => ({ ...m, [id]: (e as Error).message }));
+    }
   }
 
   async function handleFiles(files: FileList | null) {
@@ -104,6 +136,15 @@ export function UploadPage() {
                     className="rounded bg-neutral-800 px-3 py-1.5 text-xs text-neutral-200 hover:bg-neutral-700"
                   >
                     Auto-trace
+                  </button>
+                )}
+                {(f.mimeType === 'application/pdf' || f.mimeType.startsWith('image/')) && (
+                  <button
+                    onClick={() => void runImport(f.id, f.filePath, f.mimeType === 'application/pdf')}
+                    className="rounded bg-accent/15 px-3 py-1.5 text-xs text-accent hover:bg-accent/25"
+                    title="Extract walls and open a 3D scene (refine in the wizard)"
+                  >
+                    Build 3D
                   </button>
                 )}
                 <Link to="/verify" className="rounded bg-accent/20 px-3 py-1.5 text-xs text-accent hover:bg-accent/30">Trace →</Link>

@@ -3,9 +3,22 @@ import './pdf'; // side-effect: configures pdfjs GlobalWorkerOptions.workerSrc
 import { operatorListToColorSegments } from '@lib/ingestion/pdf-operator-segments';
 import { primitivePlanFromPdfSegments, type PdfText } from '@lib/ingestion/pdf-to-plan';
 import { maskFromGrayscale } from '@lib/extraction/image-mask';
+import { adaptiveMaskFromGrayscale } from '@lib/extraction/adaptive-mask';
 import { estimateSkewAngle, rotateMask } from '@lib/extraction/deskew';
 import { primitivePlanFromMask } from '@lib/extraction/raster-to-plan';
 import type { PrimitivePlan } from '@lib/extraction/primitive-plan';
+import { ocrAutoScale } from './ocr-scale';
+
+/** Fraction of wall (true) pixels in a mask — used to spot a bad global threshold. */
+function maskDensity(mask: boolean[][]): number {
+  let on = 0;
+  let total = 0;
+  for (const row of mask) {
+    total += row.length;
+    for (const v of row) if (v) on++;
+  }
+  return total > 0 ? on / total : 0;
+}
 
 /**
  * No-CAD front doors (client side). Both run entirely in the browser — the plan
@@ -52,12 +65,20 @@ export async function planFromImage(src: string, mmPerPx: number): Promise<Primi
     // Rec. 601 luma; alpha ignored (white-matted PDFs/scans read as paper).
     gray[i] = (data[i * 4]! * 0.299 + data[i * 4 + 1]! * 0.587 + data[i * 4 + 2]! * 0.114) | 0;
   }
-  const mask0 = maskFromGrayscale(gray, w, h);
+  // Global Otsu first; if it reads implausibly sparse/dense (uneven lighting,
+  // shadows), fall back to a local adaptive threshold that handles gradients.
+  const otsu = maskFromGrayscale(gray, w, h);
+  const dens = maskDensity(otsu);
+  const base = dens < 0.004 || dens > 0.45 ? adaptiveMaskFromGrayscale(gray, w, h) : otsu;
+  // OCR auto-scale runs on the pre-deskew mask (shares the OCR words' pixel frame;
+  // scale is rotation-invariant). Best-effort — null falls back to the caller's
+  // mmPerPx, which the verify wizard then lets the user confirm/rescale.
+  const ocrMmPerPx = await ocrAutoScale(src, base);
   // Deskew rotated scans/photos so axis-aligned wall detection lands (no-op when
   // the plan is already upright — estimateSkewAngle returns ~0).
-  const angle = estimateSkewAngle(mask0);
-  const mask = Math.abs(angle) > 0.005 ? rotateMask(mask0, angle) : mask0;
-  return primitivePlanFromMask(mask, { mmPerPx });
+  const angle = estimateSkewAngle(base);
+  const mask = Math.abs(angle) > 0.005 ? rotateMask(base, angle) : base;
+  return primitivePlanFromMask(mask, { mmPerPx: ocrMmPerPx ?? mmPerPx });
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {

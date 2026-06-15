@@ -8,6 +8,7 @@ import { BottomBar } from '../components/panels/BottomBar';
 import { LeftPanel } from '../components/panels/LeftPanel';
 import { TourPanel } from '../components/panels/TourPanel';
 import { ChatPanel } from '../components/chat/ChatPanel';
+import { LogPanel, LogTabBadge } from '../components/log/LogPanel';
 import { Icon } from '../components/ui/Icon';
 import { useEditor } from '../store/editor-store';
 import type { ProjectId } from '../api';
@@ -64,7 +65,7 @@ export function DesignPage() {
   const photoMode = useEditor((s) => s.photoMode);
   const undo = useEditor((s) => s.undo);
   const redo = useEditor((s) => s.redo);
-  const [rightTab, setRightTab] = useState<'inspector' | 'assistant'>('inspector');
+  const [rightTab, setRightTab] = useState<'inspector' | 'assistant' | 'log'>('inspector');
 
   useEffect(() => {
     void loadProject(projectId);
@@ -131,13 +132,14 @@ export function DesignPage() {
             {viewMode !== 'tour' && (
               <aside className="flex w-80 flex-col border-l border-panel-border bg-panel">
                 <div className="flex shrink-0 border-b border-panel-border text-xs font-medium">
-                  {(['inspector', 'assistant'] as const).map((t) => (
+                  {(['inspector', 'assistant', 'log'] as const).map((t) => (
                     <button
                       key={t}
                       onClick={() => setRightTab(t)}
-                      className={`flex-1 px-3 py-2 capitalize ${rightTab === t ? 'border-b-2 border-accent text-accent' : 'text-neutral-500 hover:text-neutral-300'}`}
+                      className={`flex flex-1 items-center justify-center px-3 py-2 capitalize ${rightTab === t ? 'border-b-2 border-accent text-accent' : 'text-neutral-500 hover:text-neutral-300'}`}
                     >
-                      {t === 'assistant' ? 'Assistant' : 'Inspector'}
+                      {t === 'assistant' ? 'Assistant' : t === 'log' ? 'Log' : 'Inspector'}
+                      {t === 'log' && <LogTabBadge />}
                     </button>
                   ))}
                 </div>
@@ -145,9 +147,13 @@ export function DesignPage() {
                   <div className="min-h-0 flex-1 overflow-y-auto">
                     <Inspector />
                   </div>
-                ) : (
+                ) : rightTab === 'assistant' ? (
                   <div className="min-h-0 flex-1">
                     <ChatPanel />
+                  </div>
+                ) : (
+                  <div className="min-h-0 flex-1">
+                    <LogPanel />
                   </div>
                 )}
               </aside>

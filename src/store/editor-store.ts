@@ -7,6 +7,7 @@ import type { ValidationIssue } from '@lib/scene/validation';
 import { buildSampleHome } from '@lib/fixtures/sample-home';
 import { fetchScene, fetchVariant, persistScene, saveVariantRemote, type ProjectId } from '../api';
 import { reportError } from './error-store';
+import { logEvent } from './log-store';
 
 /** Push commit-rejection issues to the on-screen error surface (not just the inline toast). */
 function surfaceRejection(errors: ValidationIssue[], context: string): void {
@@ -165,6 +166,7 @@ export const useEditor = create<EditorState>((set, get) => ({
       loading: false,
       activeFloorId: scene?.floors[0]?.id ?? null,
     });
+    logEvent('app', guidedEmpty ? `Started guided tracing for “${projectId}”` : `Loaded project “${projectId}”`);
   },
 
   startFromSample: () => {
@@ -206,6 +208,7 @@ export const useEditor = create<EditorState>((set, get) => ({
       redoStack: [],
       lastErrors: [],
     });
+    logEvent(patch.origin === 'user' ? 'user' : 'app', `${patch.origin === 'user' ? 'Edit' : 'Agent edit'}: ${patch.description}`);
     schedulePersist(projectId, result.scene);
     return true;
   },

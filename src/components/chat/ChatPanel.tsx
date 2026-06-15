@@ -3,29 +3,14 @@ import { parseIntent } from '@lib/agent/intent';
 import { mockAgentProvider, proposePaletteEdit } from '@lib/agent/mock-provider';
 import { resolveRoom } from '@lib/agent/vocab';
 import { makePatch } from '@lib/scene/patching';
-import type { AgentEditProposal } from '@lib/agent/provider';
 import { checkBridgeEnabled, runBridge, type BridgeRunResult } from '../../agent/claude-bridge-provider';
 import { fileToDataUrl, imageToPaletteInput } from '../../agent/image-palette';
 import { uploadPrivateFile } from '../../api';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { useEditor } from '../../store/editor-store';
-
-interface Msg {
-  role: 'user' | 'agent';
-  text: string;
-  proposal?: AgentEditProposal;
-  done?: 'applied' | 'dismissed' | 'rejected';
-  /** Thumbnail (data URL) shown in a user message. */
-  image?: string;
-  /** Extracted palette swatches shown as a colour row. */
-  palette?: string[];
-}
-
-const GREETING: Msg = {
-  role: 'agent',
-  text: 'Tell me a change — e.g. “paint the lounge walls sage green”, “add a sofa to the drawing room”, “3 variants of the master bedroom”, or attach a photo and say “recolour the bedroom from this”.',
-};
+import { useChat, type ChatMsg } from '../../store/chat-store';
+import { logEvent } from '../../store/log-store';
 
 const SUGGESTIONS = ['Add a sofa to the drawing room', '3 variants of the master bedroom', 'Warm minimal, whole home'];
 
@@ -37,23 +22,30 @@ export function ChatPanel() {
 
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
-  const [msgs, setMsgs] = useState<Msg[]>([GREETING]);
+  // Conversation + engine live in a session store so the history survives tab
+  // switches (Inspector / Log) and navigation, instead of resetting on unmount.
+  const msgs = useChat((s) => s.msgs);
+  const setMsgs = useChat((s) => s.setMsgs);
+  const provider = useChat((s) => s.provider);
+  const chooseProvider = useChat((s) => s.chooseProvider);
   const [attached, setAttached] = useState<{ dataUrl: string } | null>(null);
   const [bridgeAvailable, setBridgeAvailable] = useState(false);
-  const [provider, setProvider] = useState<'mock' | 'bridge'>('mock');
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     void checkBridgeEnabled().then((enabled) => {
       setBridgeAvailable(enabled);
-      // When the Claude bridge is live, make it the default engine so suggestions
-      // are dynamic (real Claude) out of the box — the toggle can still drop back
-      // to the built-in deterministic provider.
-      if (enabled) setProvider('bridge');
+      // When the Claude bridge is live, default to it so suggestions are dynamic
+      // (real Claude) out of the box — unless the user has pinned an engine.
+      if (enabled) useChat.getState().autoSelectProvider('bridge');
     });
   }, []);
-  const push = (m: Msg | Msg[]) => setMsgs((cur) => {
+  useEffect(() => {
+    // Returning to the Assistant tab: jump to the latest message in the persisted history.
+    scrollRef.current?.scrollTo({ top: 1e9 });
+  }, []);
+  const push = (m: ChatMsg | ChatMsg[]) => setMsgs((cur) => {
     const next = [...cur, ...(Array.isArray(m) ? m : [m])];
     queueMicrotask(() => scrollRef.current?.scrollTo({ top: 1e9 }));
     return next;
@@ -107,6 +99,7 @@ export function ChatPanel() {
     setInput('');
     setAttached(null);
     push({ role: 'user', text: text || '(reference image)', ...(img ? { image: img.dataUrl } : {}) });
+    logEvent('user', text ? `Asked the assistant: “${text}”` : 'Sent the assistant a reference image');
     setBusy(true);
     try {
       const ctx = selection?.id ? { scene, selectedEntityId: selection.id } : { scene };
@@ -187,6 +180,7 @@ export function ChatPanel() {
     // Apply the patch in the event handler — NEVER inside a setMsgs updater, which
     // React runs during render and would "update a component while rendering another".
     const ok = applyPatch(target.proposal.patch);
+    logEvent('user', `${ok ? 'Applied' : 'Rejected'} proposal: ${target.proposal.summary}`, ok ? undefined : { level: 'warn' });
     setMsgs((cur) => cur.map((msg, idx) => (idx === i ? { ...msg, done: ok ? 'applied' : 'rejected' } : msg)));
   }
 
@@ -206,7 +200,7 @@ export function ChatPanel() {
             {(['mock', 'bridge'] as const).map((pv) => (
               <button
                 key={pv}
-                onClick={() => setProvider(pv)}
+                onClick={() => chooseProvider(pv)}
                 className={`px-2.5 py-1 font-medium ${provider === pv ? 'bg-accent text-white' : 'text-neutral-500 hover:text-neutral-300'}`}
               >
                 {pv === 'mock' ? 'Built-in' : 'Claude bridge'}

@@ -178,12 +178,16 @@ export function ChatPanel() {
   }
 
   function decide(i: number, accept: boolean) {
-    setMsgs((cur) => cur.map((msg, idx) => {
-      if (idx !== i || !msg.proposal) return msg;
-      if (!accept) return { ...msg, done: 'dismissed' };
-      const ok = applyPatch(msg.proposal.patch);
-      return { ...msg, done: ok ? 'applied' : 'rejected' };
-    }));
+    const target = msgs[i];
+    if (!target?.proposal) return;
+    if (!accept) {
+      setMsgs((cur) => cur.map((msg, idx) => (idx === i ? { ...msg, done: 'dismissed' } : msg)));
+      return;
+    }
+    // Apply the patch in the event handler — NEVER inside a setMsgs updater, which
+    // React runs during render and would "update a component while rendering another".
+    const ok = applyPatch(target.proposal.patch);
+    setMsgs((cur) => cur.map((msg, idx) => (idx === i ? { ...msg, done: ok ? 'applied' : 'rejected' } : msg)));
   }
 
   return (

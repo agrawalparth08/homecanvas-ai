@@ -163,6 +163,9 @@ export function buildAutoPrompt(request: BridgeRequest, sceneJson: string): stri
 
 /** Locate the local `claude` binary (default install dir, else PATH). */
 export function detectClaudeCli(): string {
+  // Explicit override (a non-standard install path, or a test fixture binary).
+  const override = process.env['HOMECANVAS_CLAUDE_BIN'];
+  if (override) return override;
   const candidates = [path.join(os.homedir(), '.local', 'bin', 'claude'), '/opt/homebrew/bin/claude', '/usr/local/bin/claude'];
   for (const c of candidates) if (existsSync(c)) return c;
   return 'claude'; // fall back to PATH resolution; a missing binary surfaces as a spawn ENOENT

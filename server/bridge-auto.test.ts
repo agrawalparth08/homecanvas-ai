@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { makePatch } from '../lib/scene/patching';
 import type { BridgeRequest } from '../lib/agent/bridge-protocol';
-import { extractJson, parseAutoResponse } from './bridge-auto';
+import { detectClaudeCli, extractJson, parseAutoResponse } from './bridge-auto';
 
 const request: BridgeRequest = {
   schemaVersion: 1,
@@ -94,5 +94,15 @@ describe('parseAutoResponse', () => {
 
   it('rejects output with no proposals array (not a design response)', () => {
     expect(parseAutoResponse('{"note":"hi"}', request).ok).toBe(false);
+  });
+});
+
+describe('detectClaudeCli', () => {
+  afterEach(() => {
+    delete process.env['HOMECANVAS_CLAUDE_BIN'];
+  });
+  it('honours the HOMECANVAS_CLAUDE_BIN override (custom path / test fixture)', () => {
+    process.env['HOMECANVAS_CLAUDE_BIN'] = '/tmp/my-claude';
+    expect(detectClaudeCli()).toBe('/tmp/my-claude');
   });
 });

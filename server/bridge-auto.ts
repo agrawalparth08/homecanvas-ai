@@ -23,7 +23,48 @@ import {
   type BridgeRequest,
   type BridgeResponse,
 } from '../lib/agent/bridge-protocol';
+import { CATALOG } from '../lib/furniture/catalog';
 import { readRequestAndScene, writeResponse } from './bridge';
+
+/** Sequence for synthesized furniture ids (server-side, per process). */
+let furnSeq = 0;
+
+/**
+ * Complete a model-proposed place_furniture op. Claude only has to choose a
+ * catalogKey (or dimensions), a roomId, and a position; we fill the heavy,
+ * error-prone schema fields (id, footprint, materialIds, source, defaults) from
+ * the catalog so the proposal validates instead of being dropped.
+ */
+function completeFurnitureOp(op: unknown): unknown {
+  const o = op as { type?: string; object?: Record<string, unknown> };
+  if (o?.type !== 'place_furniture' || !o.object || typeof o.object !== 'object') return op;
+  const ob = o.object as Record<string, unknown>;
+  const cat = typeof ob['catalogKey'] === 'string' ? (CATALOG as Record<string, { category: string; kind: string; name: string; w: number; d: number; h: number; model?: string }>)[ob['catalogKey'] as string] : undefined;
+  const dims = (ob['dimensions'] as { w?: number; d?: number; h?: number } | undefined) ?? (cat ? { w: cat.w, d: cat.d, h: cat.h } : {});
+  const w = Number(dims.w) || cat?.w || 800;
+  const d = Number(dims.d) || cat?.d || 800;
+  const h = Number(dims.h) || cat?.h || 800;
+  const tr = (ob['transform'] as { x?: number; y?: number; elevation?: number; rotationY?: number } | undefined) ?? {};
+  const assetRef = typeof ob['assetRef'] === 'string' ? (ob['assetRef'] as string) : cat?.model;
+  return {
+    type: 'place_furniture',
+    object: {
+      id: typeof ob['id'] === 'string' && ob['id'] ? ob['id'] : `agent-${furnSeq++}-${(ob['roomId'] as string) ?? 'x'}`,
+      roomId: ob['roomId'],
+      category: ob['category'] ?? cat?.category ?? 'chair',
+      name: ob['name'] ?? cat?.name ?? 'Furniture',
+      ...(assetRef ? { assetRef } : {}),
+      procedural: ob['procedural'] ?? { kind: cat?.kind ?? ob['category'] ?? 'chair' },
+      transform: { x: Number(tr.x) || 0, y: Number(tr.y) || 0, elevation: Number(tr.elevation) || 0, rotationY: Number(tr.rotationY) || 0 },
+      dimensions: { w, d, h },
+      footprint: Array.isArray(ob['footprint'])
+        ? ob['footprint']
+        : [{ x: -w / 2, y: -d / 2 }, { x: w / 2, y: -d / 2 }, { x: w / 2, y: d / 2 }, { x: -w / 2, y: d / 2 }],
+      materialIds: Array.isArray(ob['materialIds']) ? ob['materialIds'] : [],
+      source: ob['source'] ?? { kind: 'agent', confidence: 0.8 },
+    },
+  };
+}
 
 export const bridgeAutoEnabled = (): boolean => process.env['HOMECANVAS_BRIDGE_AUTO'] === '1';
 
@@ -52,14 +93,37 @@ export type AutoParse =
  */
 export function parseAutoResponse(modelText: string, request: BridgeRequest): AutoParse {
   const json = extractJson(modelText);
-  if (!json || typeof json !== 'object') return { ok: false, reason: 'no JSON object in claude output' };
-  const proposalsRaw = (json as { proposals?: unknown }).proposals;
-  const note = (json as { note?: unknown }).note;
+  if (!json || typeof json !== 'object') {
+    // No JSON usually means the CLI printed a plain-text error (e.g. "cannot be
+    // launched inside another Claude Code session"). Surface it, don't swallow it.
+    const snippet = modelText.trim().slice(0, 200);
+    return { ok: false, reason: snippet ? `claude did not return JSON (${snippet})` : 'claude returned no output' };
+  }
+  const obj = json as { proposals?: unknown; note?: unknown; error?: unknown };
+  // The claude CLI prints API errors (auth 401, rate limit, etc.) as a JSON
+  // object with an `error` field. Without this guard that object has no
+  // `proposals`, so it would validate as a "ready, 0 changes" response and hide
+  // the real failure from the user.
+  if (obj.error && typeof obj.error === 'object') {
+    const msg = (obj.error as { message?: unknown }).message;
+    return { ok: false, reason: `claude error: ${typeof msg === 'string' ? msg : 'request failed'}` };
+  }
+  if (!Array.isArray(obj.proposals)) {
+    return { ok: false, reason: 'claude output had no "proposals" array' };
+  }
+  const note = obj.note;
+  // Complete any place_furniture ops (fill the heavy schema fields) before validation.
+  const proposals = obj.proposals.map((p) => {
+    const pp = p as { patch?: { ops?: unknown[] } };
+    return pp?.patch && Array.isArray(pp.patch.ops)
+      ? { ...pp, patch: { ...pp.patch, ops: pp.patch.ops.map(completeFurnitureOp) } }
+      : p;
+  });
   const candidate = {
     schemaVersion: BRIDGE_SCHEMA_VERSION,
     requestId: request.id,
     contentHash: request.contentHash,
-    proposals: Array.isArray(proposalsRaw) ? proposalsRaw : [],
+    proposals,
     ...(typeof note === 'string' ? { note } : {}),
   };
   const parsed = BridgeResponseSchema.safeParse(candidate);
@@ -68,6 +132,9 @@ export function parseAutoResponse(modelText: string, request: BridgeRequest): Au
 
 /** Paste-ready prompt for `claude -p` — design ops over the scene, JSON only. */
 export function buildAutoPrompt(request: BridgeRequest, sceneJson: string): string {
+  const menu = Object.entries(CATALOG)
+    .map(([k, v]) => `${k} ${v.w}x${v.d}`)
+    .join(', ');
   return [
     `You are HomeCanvas's design engine. Propose interior-design edits for the request below as ScenePatch ops.`,
     ``,
@@ -81,7 +148,11 @@ export function buildAutoPrompt(request: BridgeRequest, sceneJson: string): stri
     `- {"type":"set_surface_color","surface":<SurfaceRef>,"color":"#rrggbb"}`,
     `- {"type":"assign_material_to_surface","surface":<SurfaceRef>,"materialId":"<scene.materials id>"}`,
     `- {"type":"set_room_style_tags","roomId":"<room id>","styleTags":["..."]}`,
+    `- {"type":"place_furniture","object":{"catalogKey":"<key>","roomId":"<room id>","transform":{"x":<mm>,"y":<mm>,"rotationY":<radians>}}}`,
     `SurfaceRef = {"kind":"roomFloor","roomId":"<id>"} | {"kind":"roomCeiling","roomId":"<id>"} | {"kind":"wallSide","wallId":"<id>","side":"sideA"|"sideB"}`,
+    ``,
+    `FURNITURE: pick catalogKey from this menu (size WxD in mm) — ${menu}.`,
+    `Put transform.x,y in MILLIMETRES inside the target room's boundary.outer polygon (read it from the SCENE), spacing pieces so they don't overlap. rotationY is radians (0, 1.5708, 3.1416, 4.7124). One place_furniture op per piece; a few coherent pieces for a "furnish" request.`,
     ``,
     `Keep it to a few coherent ops. Every proposal.patch.ops array must be non-empty. SCENE JSON:`,
     sceneJson,

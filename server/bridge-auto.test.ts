@@ -55,4 +55,44 @@ describe('parseAutoResponse', () => {
     expect(out.ok).toBe(true);
     if (out.ok) expect(out.response.proposals).toEqual([]);
   });
+
+  it('completes a minimal place_furniture op (catalogKey) into a valid object', () => {
+    // Claude only supplies catalogKey + roomId + position; the heavy schema
+    // fields (id, footprint, materialIds, source, dims) are filled server-side.
+    const furnish = {
+      proposals: [
+        {
+          id: 'p1',
+          summary: 'Add a sofa',
+          target: 'Drawing',
+          patch: {
+            id: 'patch-1',
+            origin: 'agent',
+            description: 'furnish',
+            ops: [{ type: 'place_furniture', object: { catalogKey: 'sofa', roomId: 'room-1', transform: { x: 2000, y: 1500, rotationY: 0 } } }],
+          },
+        },
+      ],
+    };
+    const out = parseAutoResponse(JSON.stringify(furnish), request);
+    expect(out.ok).toBe(true);
+    if (out.ok) {
+      const op = out.response.proposals[0]!.patch.ops[0] as { type: string; object: { dimensions: { w: number }; footprint: unknown[]; id: string } };
+      expect(op.type).toBe('place_furniture');
+      expect(op.object.dimensions.w).toBe(2000); // sofa catalog width
+      expect(op.object.footprint).toHaveLength(4); // synthesized rectangle
+      expect(op.object.id.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('surfaces a claude CLI error object instead of swallowing it as "no changes"', () => {
+    const authErr = 'Failed to authenticate. API Error: 401 {"type":"error","error":{"type":"authentication_error","message":"Invalid authentication credentials"}}';
+    const out = parseAutoResponse(authErr, request);
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.reason).toMatch(/Invalid authentication credentials/);
+  });
+
+  it('rejects output with no proposals array (not a design response)', () => {
+    expect(parseAutoResponse('{"note":"hi"}', request).ok).toBe(false);
+  });
 });

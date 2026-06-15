@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { commit } from '@lib/scene/commit';
@@ -154,10 +154,17 @@ export function VerifyPage() {
     setViewMode('orbit');
   }, [setViewMode]);
 
+  // One-shot guard: StrictMode runs this effect twice in dev. Without it the
+  // second run (after pendingImport is consumed) would fetch my-home and race the
+  // in-flight import.
+  const initedRef = useRef(false);
+
   // On mount: a fresh no-CAD import (handed via the store) takes priority — review
   // it here with the source plan as underlay + a scale-plausibility gate. Otherwise
   // start from the current my-home trace so you correct it against the real plan.
   useEffect(() => {
+    if (initedRef.current) return;
+    initedRef.current = true;
     const pending = useEditor.getState().pendingImport;
     if (pending) {
       useEditor.getState().setPendingImport(null); // consume once

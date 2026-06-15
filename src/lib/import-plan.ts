@@ -3,6 +3,7 @@ import './pdf'; // side-effect: configures pdfjs GlobalWorkerOptions.workerSrc
 import { operatorListToColorSegments } from '@lib/ingestion/pdf-operator-segments';
 import { primitivePlanFromPdfSegments, type PdfText } from '@lib/ingestion/pdf-to-plan';
 import { maskFromGrayscale } from '@lib/extraction/image-mask';
+import { estimateSkewAngle, rotateMask } from '@lib/extraction/deskew';
 import { primitivePlanFromMask } from '@lib/extraction/raster-to-plan';
 import type { PrimitivePlan } from '@lib/extraction/primitive-plan';
 
@@ -51,7 +52,11 @@ export async function planFromImage(src: string, mmPerPx: number): Promise<Primi
     // Rec. 601 luma; alpha ignored (white-matted PDFs/scans read as paper).
     gray[i] = (data[i * 4]! * 0.299 + data[i * 4 + 1]! * 0.587 + data[i * 4 + 2]! * 0.114) | 0;
   }
-  const mask = maskFromGrayscale(gray, w, h);
+  const mask0 = maskFromGrayscale(gray, w, h);
+  // Deskew rotated scans/photos so axis-aligned wall detection lands (no-op when
+  // the plan is already upright — estimateSkewAngle returns ~0).
+  const angle = estimateSkewAngle(mask0);
+  const mask = Math.abs(angle) > 0.005 ? rotateMask(mask0, angle) : mask0;
   return primitivePlanFromMask(mask, { mmPerPx });
 }
 

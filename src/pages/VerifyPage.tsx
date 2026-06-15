@@ -3,7 +3,8 @@ import { Link, useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { commit } from '@lib/scene/commit';
 import { makePatch, type ScenePatch } from '@lib/scene/patching';
-import { SCHEMA_VERSION, type DesignVariant, type HomeScene, type Opening } from '@lib/scene/schemas';
+import { SCHEMA_VERSION, type DesignVariant, type Floor, type HomeScene, type Opening } from '@lib/scene/schemas';
+import { checkSceneScale, type ScaleCheck } from '@lib/extraction/scene-plausibility';
 import { findEntity, lockedEntityIds } from '@lib/scene/selectors';
 import {
   isStructuralColumn,
@@ -79,6 +80,50 @@ function OpeningEditor({ opening, apply }: { opening: Opening; apply: (p: SceneP
   );
 }
 
+/**
+ * Rescale a built (imported/traced) floor's geometry to a real-world width via
+ * recalibrate_floor — the fix when an import's scale is implausible. The user
+ * reads off the current width and enters the true one; factor = real / current.
+ */
+function RescalePanel({ floor, flagged, onRescale }: { floor: Floor; flagged: boolean; onRescale: (factor: number) => void }) {
+  const wMm = useMemo(() => {
+    let minX = Infinity;
+    let maxX = -Infinity;
+    for (const w of floor.walls)
+      for (const p of w.path.pts) {
+        if (p.x < minX) minX = p.x;
+        if (p.x > maxX) maxX = p.x;
+      }
+    return Number.isFinite(minX) ? maxX - minX : 0;
+  }, [floor.walls]);
+  const [realM, setRealM] = useState('');
+  const submit = () => {
+    const r = Number(realM);
+    if (r > 0 && wMm > 0) onRescale((r * 1000) / wMm);
+  };
+  return (
+    <div className={`rounded border p-2 text-xs ${flagged ? 'border-amber-700/60 bg-amber-950/30 text-amber-200' : 'border-panel-border bg-panel text-neutral-300'}`}>
+      <div className="font-medium">{flagged ? '⚠ Scale looks off' : 'Rescale (optional)'}</div>
+      <div className="mt-1 opacity-80">Current width ≈ {(wMm / 1000).toFixed(1)} m. Enter this floor’s real width:</div>
+      <div className="mt-1.5 flex gap-1">
+        <input
+          type="number"
+          min={0}
+          step={0.1}
+          value={realM}
+          onChange={(e) => setRealM(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
+          placeholder="metres"
+          className="w-full rounded border border-panel-border bg-neutral-900 px-2 py-1 text-neutral-100"
+        />
+        <button onClick={submit} className="rounded bg-accent/25 px-2 font-medium text-accent hover:bg-accent/35">
+          Rescale
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function VerifyPage() {
   const navigate = useNavigate();
   const loadSceneObject = useEditor((s) => s.loadSceneObject);
@@ -96,6 +141,9 @@ export function VerifyPage() {
   const [show3D, setShow3D] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // Set when a fresh no-CAD import looks implausibly scaled (drives the banner +
+  // the rescale prompt in the Scale step); cleared once the user rescales.
+  const [scaleWarning, setScaleWarning] = useState<ScaleCheck | null>(null);
   // Tracing-local undo/redo (separate from the main canvas history): every edit
   // snapshots the prior scene so a delete/move can be stepped back.
   const [undoStack, setUndoStack] = useState<HomeScene[]>([]);
@@ -106,8 +154,56 @@ export function VerifyPage() {
     setViewMode('orbit');
   }, [setViewMode]);
 
-  // Start from the current my-home trace so you correct it against the real plan.
+  // On mount: a fresh no-CAD import (handed via the store) takes priority — review
+  // it here with the source plan as underlay + a scale-plausibility gate. Otherwise
+  // start from the current my-home trace so you correct it against the real plan.
   useEffect(() => {
+    const pending = useEditor.getState().pendingImport;
+    if (pending) {
+      useEditor.getState().setPendingImport(null); // consume once
+      void (async () => {
+        let s = pending.scene;
+        const f0 = s.floors[0];
+        const fId = f0?.id ?? 'floor-lower';
+        // Rasterize the source as the underlay so the user can calibrate against
+        // it (best-effort — review still works without it).
+        if (pending.source) {
+          try {
+            const url = privateFileUrl(pending.source.filePath);
+            const raster =
+              pending.source.mime === 'application/pdf' ? await rasterizePdf(url, 1, 2) : await loadRasterImage(url);
+            setUnderlayUrls((u) => ({ ...u, [fId]: raster.dataUrl }));
+            const savedPath = (await saveRasterizedPage(`${fId}-import`, raster.dataUrl)) ?? pending.source.filePath;
+            const res = commit(
+              s,
+              makePatch('Set plan underlay', [
+                {
+                  type: 'set_floor_underlay',
+                  floorId: fId,
+                  underlay: { filePath: savedPath, opacity: 0.5, widthPx: raster.widthPx, heightPx: raster.heightPx, page: raster.page },
+                },
+              ]),
+            );
+            if (res.ok) s = res.scene;
+          } catch {
+            /* underlay is optional */
+          }
+        }
+        const check = checkSceneScale(s);
+        setScene(s);
+        setFloorId(fId);
+        setScaleWarning(check.suggestCalibration ? check : null);
+        setWizard((w) => ({
+          ...w,
+          step: check.suggestCalibration ? 'scale' : 'rooms',
+          hasUnderlay: !!pending.source,
+          calibrated: !check.suggestCalibration,
+          wallCount: f0?.walls.length ?? 0,
+          roomCount: f0?.rooms.length ?? 0,
+        }));
+      })();
+      return;
+    }
     void fetchScene('my-home').then((s) => {
       if (!s) return;
       setScene(s);
@@ -448,6 +544,18 @@ export function VerifyPage() {
 
       {err && <div className="bg-red-950/80 px-4 py-1 text-xs text-red-200">{err}</div>}
       {busy && <div className="bg-accent/15 px-4 py-1 text-xs text-accent">{busy}</div>}
+      {scaleWarning && (
+        <div className="flex items-center gap-2 bg-amber-950/80 px-4 py-1.5 text-xs text-amber-200">
+          <Icon name="warning" />
+          <span>
+            This import reads as {scaleWarning.metrics.widthM}×{scaleWarning.metrics.depthM} m
+            {scaleWarning.issues[0] ? ` — ${scaleWarning.issues[0].message}` : ''}. Set the real width in the Scale step, or dismiss if it’s correct.
+          </span>
+          <button onClick={() => setScaleWarning(null)} className="ml-auto rounded bg-amber-900/60 px-2 py-0.5 hover:bg-amber-900">
+            Dismiss
+          </button>
+        </div>
+      )}
 
       <ConfirmDialog
         open={!!pendingDeleteId}
@@ -540,6 +648,16 @@ export function VerifyPage() {
                   Click two points along a known dimension, then type its length. The plan rescales to real-world mm.
                   {calibration && <div className="mt-2 text-emerald-400">✓ scale set ({calibration.mmPerPx.toFixed(1)} mm/px)</div>}
                 </div>
+              )}
+              {wstate.step === 'scale' && floor.walls.length > 0 && (
+                <RescalePanel
+                  floor={floor}
+                  flagged={!!scaleWarning}
+                  onRescale={(factor) => {
+                    apply(makePatch('Rescale floor', [{ type: 'recalibrate_floor', floorId, factor, keepFurnitureSize: false }]));
+                    setScaleWarning(null);
+                  }}
+                />
               )}
               {floor.underlay && (
                 <label className="block text-xs text-neutral-400">

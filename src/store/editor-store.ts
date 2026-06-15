@@ -22,6 +22,13 @@ export interface Selection {
   id: string;
 }
 
+/** A no-CAD import (PDF/image) handed to the verify wizard for review before it
+ *  becomes the working scene — kept in memory so it never clobbers my-home on disk. */
+export interface PendingImport {
+  scene: HomeScene;
+  source?: { filePath: string; mime: string };
+}
+
 export type ViewMode = 'orbit' | 'top' | 'walk' | 'tour';
 
 interface EditorState {
@@ -44,6 +51,8 @@ interface EditorState {
   activeVariantId: string | null;
   /** True while a furniture piece is being click-dragged; locks the orbit camera. */
   draggingObject: boolean;
+  /** A no-CAD import awaiting review in the verify wizard (null once consumed). */
+  pendingImport: PendingImport | null;
 
   loadProject: (projectId: ProjectId) => Promise<void>;
   startFromSample: () => void;
@@ -56,6 +65,7 @@ interface EditorState {
   setActiveFloor: (floorId: string) => void;
   setViewMode: (mode: ViewMode) => void;
   setDraggingObject: (dragging: boolean) => void;
+  setPendingImport: (pending: PendingImport | null) => void;
   setShowBefore: (show: boolean) => void;
   /** Spatial before/after wipe: 'off' = normal single view, 'slider' = clipped dual render. */
   compareMode: CompareMode;
@@ -129,6 +139,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   lastErrors: [],
   activeVariantId: null,
   draggingObject: false,
+  pendingImport: null,
   compareMode: 'off',
   sliderPos: 0.5,
   capturePhoto: null,
@@ -241,6 +252,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   setActiveFloor: (floorId) => set({ activeFloorId: floorId, selection: null, tourIndex: 0 }),
   setViewMode: (viewMode) => set({ viewMode }),
   setDraggingObject: (draggingObject) => set({ draggingObject }),
+  setPendingImport: (pendingImport) => set({ pendingImport }),
   setShowBefore: (showBefore) => set({ showBefore }),
   setCompareMode: (compareMode) => set({ compareMode }),
   setSliderPos: (sliderPos) => set({ sliderPos: sliderPos < 0 ? 0 : sliderPos > 1 ? 1 : sliderPos }),

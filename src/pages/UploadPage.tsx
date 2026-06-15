@@ -25,7 +25,7 @@ export function UploadPage() {
   const [autoMsg, setAutoMsg] = useState<Record<string, string>>({});
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
-  const loadSceneObject = useEditor((s) => s.loadSceneObject);
+  const setPendingImport = useEditor((s) => s.setPendingImport);
 
   async function runAuto(id: string, filePath: string) {
     setAutoMsg((m) => ({ ...m, [id]: 'Auto-tracing…' }));
@@ -34,17 +34,18 @@ export function UploadPage() {
   }
 
   // No-CAD import: extract a PrimitivePlan in the browser (vector-PDF or raster
-  // image), build a validated scene via the spine endpoint, load it, open 3D.
-  async function runImport(id: string, filePath: string, isPdf: boolean) {
+  // image), build a validated scene via the spine endpoint, then hand it to the
+  // verify wizard for review/calibration (never clobbers my-home on disk).
+  async function runImport(id: string, filePath: string, mime: string) {
     setAutoMsg((m) => ({ ...m, [id]: 'Extracting…' }));
     try {
       const url = privateFileUrl(filePath);
       let plan;
-      if (isPdf) {
+      if (mime === 'application/pdf') {
         plan = await planFromPdf(url);
       } else {
         const img = await loadRasterImage(url);
-        // No calibration yet: assume a ~12m-wide plan; refine scale in the wizard.
+        // No calibration yet: assume a ~12m-wide plan; the wizard flags + fixes it.
         const mmPerPx = 12000 / Math.max(1, img.widthPx);
         plan = await planFromImage(img.dataUrl, mmPerPx);
       }
@@ -53,8 +54,8 @@ export function UploadPage() {
         setAutoMsg((m) => ({ ...m, [id]: r.reason ?? 'could not build a scene' }));
         return;
       }
-      loadSceneObject('my-home', r.scene);
-      navigate('/design/my-home');
+      setPendingImport({ scene: r.scene, source: { filePath, mime } });
+      navigate('/verify');
     } catch (e) {
       setAutoMsg((m) => ({ ...m, [id]: (e as Error).message }));
     }
@@ -140,9 +141,9 @@ export function UploadPage() {
                 )}
                 {(f.mimeType === 'application/pdf' || f.mimeType.startsWith('image/')) && (
                   <button
-                    onClick={() => void runImport(f.id, f.filePath, f.mimeType === 'application/pdf')}
+                    onClick={() => void runImport(f.id, f.filePath, f.mimeType)}
                     className="rounded bg-accent/15 px-3 py-1.5 text-xs text-accent hover:bg-accent/25"
-                    title="Extract walls and open a 3D scene (refine in the wizard)"
+                    title="Extract walls and review in the verify wizard"
                   >
                     Build 3D
                   </button>

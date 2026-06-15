@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "concurrently -n web,api -c blue,green \"vite\" \"tsx watch server/index.ts\"",
+    "dev:bridge": "concurrently -n web,api -c blue,green \"vite\" \"HOMECANVAS_ENABLE_BRIDGE=1 HOMECANVAS_BRIDGE_AUTO=1 tsx watch server/index.ts\"",
     "dev:web": "vite",
     "dev:api": "tsx watch server/index.ts",
     "build": "tsc --noEmit && vite build",

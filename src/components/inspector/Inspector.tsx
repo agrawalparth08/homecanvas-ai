@@ -1,5 +1,6 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { designPackName, designRoomPatch } from '@lib/agent/autodesign';
+import { checkBridgeEnabled, runBridge } from '../../agent/claude-bridge-provider';
 import { CATALOG, placeFurnitureInRoom, uniqueFurnitureId, type CatalogKey } from '@lib/furniture/catalog';
 import { autoFurnishRoom } from '@lib/furniture/auto-furnish';
 import { polygonArea } from '@lib/geometry/rooms';
@@ -26,6 +27,13 @@ import { StairControls } from './StairControls';
 function RoomExtras({ scene, room }: { scene: HomeScene; room: Room }) {
   const applyPatch = useEditor((s) => s.applyPatch);
   const [furnKey, setFurnKey] = useState<CatalogKey>('sofa');
+  // When the Claude bridge is live, "Furnish" asks Claude for a contextual set
+  // instead of the deterministic packer (which stays the offline fallback).
+  const [bridgeOn, setBridgeOn] = useState(false);
+  const [furnishing, setFurnishing] = useState(false);
+  useEffect(() => {
+    void checkBridgeEnabled().then(setBridgeOn);
+  }, []);
   const locked = lockedEntityIds(scene).has(room.id);
 
   const setRoomWalls = (mk: (wallId: string, side: 'sideA' | 'sideB') => PatchOp) => {
@@ -61,11 +69,9 @@ function RoomExtras({ scene, room }: { scene: HomeScene; room: Room }) {
     if (patch) applyPatch(patch);
   };
 
-  // One-click "fill this room": collision-packed suggested pieces from the full
-  // catalog (all-furniture), each given a fresh id so re-furnishing stacks more.
-  // Note: packs against the pieces it places, not pre-existing ones — drop into
-  // empty rooms for the cleanest result (drag/remove handle any overlap).
-  const furnishRoom = () => {
+  // Offline fallback: collision-packed suggested pieces from the full catalog,
+  // each given a fresh id so re-furnishing stacks more.
+  const staticFurnish = () => {
     const floor = scene.floors.find((f) => f.rooms.some((r) => r.id === room.id));
     if (!floor) return;
     const used = new Set(floor.objects.map((o) => o.id));
@@ -76,6 +82,32 @@ function RoomExtras({ scene, room }: { scene: HomeScene; room: Room }) {
     });
     if (pieces.length === 0) return;
     applyPatch(makePatch(`Furnish ${room.name}`, pieces.map((object) => ({ type: 'place_furniture', object }))));
+  };
+
+  // Dynamic: ask the local Claude (via the bridge) for a contextual furniture set;
+  // its validated place_furniture proposals are applied. Falls back to the static
+  // packer if the bridge is off, errors, or returns nothing.
+  const furnishRoom = async () => {
+    if (!bridgeOn) {
+      staticFurnish();
+      return;
+    }
+    setFurnishing(true);
+    try {
+      const r = await runBridge(
+        `Furnish the "${room.name}" (a ${room.kind}) with a realistic, collision-aware furniture set suited to its size and purpose. Propose only place_furniture ops with sensible positions inside the room.`,
+        { scene, selectedEntityId: room.id },
+      );
+      if (r.status === 'ready' && r.proposals.length > 0) {
+        const applied = r.proposals.reduce((n, p) => n + (applyPatch(p.patch) ? 1 : 0), 0);
+        if (applied === 0) staticFurnish(); // all rejected -> fall back
+      } else {
+        if (r.status === 'error') reportError(`Furnish via Claude failed (${r.reason}) — used the built-in set.`, { kind: 'runtime' });
+        staticFurnish(); // disabled / pending / empty -> fallback
+      }
+    } finally {
+      setFurnishing(false);
+    }
   };
 
   return (
@@ -112,12 +144,12 @@ function RoomExtras({ scene, room }: { scene: HomeScene; room: Room }) {
         </div>
       </label>
       <button
-        onClick={furnishRoom}
-        disabled={locked}
-        title={locked ? 'Unlock the room first' : 'Drop a set of suggested pieces into this room'}
+        onClick={() => void furnishRoom()}
+        disabled={locked || furnishing}
+        title={locked ? 'Unlock the room first' : bridgeOn ? 'Ask your local Claude to furnish this room' : 'Drop a set of suggested pieces into this room'}
         className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-panel-border bg-panel px-2 py-2.5 text-xs font-semibold text-neutral-200 transition-colors enabled:hover:border-neutral-700 enabled:hover:text-neutral-100 disabled:opacity-45"
       >
-        <Icon name="plus" className="text-[15px]" /> Furnish this room
+        <Icon name="plus" className="text-[15px]" /> {furnishing ? 'Asking Claude…' : bridgeOn ? 'Furnish (Claude)' : 'Furnish this room'}
       </button>
       <button
         onClick={autoDesign}

@@ -45,7 +45,13 @@ export function ChatPanel() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    void checkBridgeEnabled().then(setBridgeAvailable);
+    void checkBridgeEnabled().then((enabled) => {
+      setBridgeAvailable(enabled);
+      // When the Claude bridge is live, make it the default engine so suggestions
+      // are dynamic (real Claude) out of the box — the toggle can still drop back
+      // to the built-in deterministic provider.
+      if (enabled) setProvider('bridge');
+    });
   }, []);
   const push = (m: Msg | Msg[]) => setMsgs((cur) => {
     const next = [...cur, ...(Array.isArray(m) ? m : [m])];

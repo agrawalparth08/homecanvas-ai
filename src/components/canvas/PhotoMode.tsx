@@ -152,6 +152,11 @@ function PathTracerDriver({
   useFrame(() => {
     const pt = ptRef.current;
     if (!pt) return;
+    // R3F doesn't refresh matrices when a priority>0 frame owns the loop, so
+    // OrbitControls' position changes wouldn't reach matrixWorld and the camera
+    // move would go undetected (the image stays frozen on rotate). Update it
+    // ourselves so any view change resets accumulation and re-renders.
+    camera.updateMatrixWorld();
     if (!camera.matrixWorld.equals(lastMat.current)) {
       lastMat.current.copy(camera.matrixWorld);
       pt.updateCamera();

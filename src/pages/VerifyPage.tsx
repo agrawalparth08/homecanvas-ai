@@ -235,7 +235,11 @@ export function VerifyPage() {
     () => ({
       ...wizard,
       hasUnderlay: !!floor?.underlay,
-      calibrated: !!floor?.calibration,
+      // A built scene (import/already-traced: walls present) is metric already —
+      // the Scale step is an optional rescale, so it can advance without a
+      // px-calibration. The from-scratch trace still needs calibration (no walls
+      // yet at the Scale step), so the gate only relaxes once walls exist.
+      calibrated: !!floor?.calibration || (floor?.walls.length ?? 0) > 0,
       wallCount: floor?.walls.length ?? 0,
       roomCount: floor?.rooms.length ?? 0,
     }),

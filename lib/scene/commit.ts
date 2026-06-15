@@ -568,6 +568,12 @@ function applyOp(draft: HomeScene, op: PatchOp): void {
         v.y = snapMm(v.y * f);
       };
       for (const wall of floor.walls) wall.path.pts.forEach(sv);
+      // Opening width is an absolute in-plan mm span, so it must scale with the
+      // wall it sits on (u is fractional → invariant). Without this a shrink
+      // leaves openings wider than their now-shorter walls and the validator
+      // rejects the whole rescale ("opening does not fit"). Heights (sill/head)
+      // are a vertical axis and stay fixed.
+      for (const opening of floor.openings) opening.width = snapMm(opening.width * f);
       for (const room of floor.rooms) {
         room.boundary.outer.forEach(sv);
         room.boundary.holes.forEach((h) => h.forEach(sv));

@@ -47,19 +47,27 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
 
 export async function ocrAutoScale(imageSrc: string, mask: boolean[][], timeoutMs = 18000): Promise<number | null> {
   try {
-    const tesseract = await import('tesseract.js');
-    const result = await withTimeout(tesseract.recognize(imageSrc, 'eng'), timeoutMs);
-    const raw = flattenWords(result.data as { words?: RawWord[]; blocks?: unknown[] | null });
-    const words: OcrWord[] = raw.map((wd) => ({
-      text: wd.text,
-      cx: (wd.bbox.x0 + wd.bbox.x1) / 2,
-      cy: (wd.bbox.y0 + wd.bbox.y1) / 2,
-      w: wd.bbox.x1 - wd.bbox.x0,
-      h: wd.bbox.y1 - wd.bbox.y0,
-    }));
-    if (words.length === 0) return null;
-    const res = mmPerPxFromDimensions(dimensionSamples(words, linesFromMask(mask)));
-    return res && res.mmPerPx > 0 && Number.isFinite(res.mmPerPx) ? res.mmPerPx : null;
+    // A WORKER is required: tesseract v6's top-level recognize() omits the output
+    // spec, so `blocks` stays null and there's no word geometry. createWorker +
+    // recognize(image, options, { blocks: true }) is the only way to get words.
+    const { createWorker } = await import('tesseract.js');
+    const worker = await createWorker('eng');
+    try {
+      const result = await withTimeout(worker.recognize(imageSrc, {}, { blocks: true }), timeoutMs);
+      const raw = flattenWords(result.data as { words?: RawWord[]; blocks?: unknown[] | null });
+      const words: OcrWord[] = raw.map((wd) => ({
+        text: wd.text,
+        cx: (wd.bbox.x0 + wd.bbox.x1) / 2,
+        cy: (wd.bbox.y0 + wd.bbox.y1) / 2,
+        w: wd.bbox.x1 - wd.bbox.x0,
+        h: wd.bbox.y1 - wd.bbox.y0,
+      }));
+      if (words.length === 0) return null;
+      const res = mmPerPxFromDimensions(dimensionSamples(words, linesFromMask(mask)));
+      return res && res.mmPerPx > 0 && Number.isFinite(res.mmPerPx) ? res.mmPerPx : null;
+    } finally {
+      await worker.terminate();
+    }
   } catch {
     return null; // any failure -> caller keeps its default scale
   }

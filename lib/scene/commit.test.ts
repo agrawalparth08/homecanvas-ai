@@ -138,6 +138,22 @@ describe('commit pipeline', () => {
     expect(parapet.path.pts[1]!.x).toBe(10800);
   });
 
+  it('recalibrates DOWN (shrink) without breaking opening fit', () => {
+    // The over-scaled-import correction shrinks the floor (factor < 1). Opening
+    // width must scale with its wall or the validator rejects ("opening does not
+    // fit"). mustCommit throws on rejection, so reaching the asserts proves the fix.
+    const s = scene();
+    const floorId = s.floors[0]!.id;
+    const op0 = s.floors[0]!.openings[0]!;
+    const { scene: next } = mustCommit(
+      s,
+      makePatch('shrink', [{ type: 'recalibrate_floor', floorId, factor: 0.5, keepFurnitureSize: true }]),
+    );
+    const op1 = next.floors[0]!.openings.find((o) => o.id === op0.id)!;
+    expect(op1.width).toBeCloseTo(op0.width * 0.5, 1); // width scaled with the wall
+    expect(op1.u).toBeCloseTo(op0.u, 5); // fractional position invariant
+  });
+
   it('reports a precise effect set', () => {
     const s = scene();
     const result = commit(

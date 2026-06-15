@@ -134,4 +134,42 @@ describe('operatorListToColorSegments', () => {
   it('returns no segments for an empty operator list', () => {
     expect(operatorListToColorSegments(opList([]), OPS)).toEqual([]);
   });
+
+  // --- pdfjs 6 DrawOPS format (the real page.getOperatorList() shape) ---
+
+  /** A pdfjs-6 constructPath arg tuple: [fn, [pathBuffer], minMax?]. */
+  const cp = (buf: ArrayLike<number>) => [0, [buf]];
+
+  it('decodes a real Float32Array DrawOPS buffer (the shape pdfjs 6 actually emits)', () => {
+    // moveTo(0,0) lineTo(50,0) lineTo(50,40) as a TYPED-ARRAY DrawOPS stream —
+    // this is exactly what the old Array.isArray check dropped (=> 0 segments).
+    const list = opList([[OPS.constructPath, cp(new Float32Array([0, 0, 0, 1, 50, 0, 1, 50, 40]))]]);
+    expect(operatorListToColorSegments(list, OPS)).toEqual<ColorSegment[]>([
+      { x0: 0, y0: 0, x1: 50, y1: 0, color: '#000000' },
+      { x0: 50, y0: 0, x1: 50, y1: 40, color: '#000000' },
+    ]);
+  });
+
+  it('chord-flattens curveTo (stride 6) to its endpoint', () => {
+    const list = opList([[OPS.constructPath, cp([0, 0, 0, 2, 10, 0, 20, 10, 30, 10])]]);
+    expect(operatorListToColorSegments(list, OPS)).toEqual<ColorSegment[]>([
+      { x0: 0, y0: 0, x1: 30, y1: 10, color: '#000000' },
+    ]);
+  });
+
+  it('chord-flattens quadraticCurveTo (stride 4) to its endpoint', () => {
+    const list = opList([[OPS.constructPath, cp([0, 0, 0, 3, 10, 0, 20, 20])]]);
+    expect(operatorListToColorSegments(list, OPS)).toEqual<ColorSegment[]>([
+      { x0: 0, y0: 0, x1: 20, y1: 20, color: '#000000' },
+    ]);
+  });
+
+  it('closePath emits a segment back to the subpath start', () => {
+    const list = opList([[OPS.constructPath, cp([0, 0, 0, 1, 10, 0, 1, 10, 10, 4])]]);
+    expect(operatorListToColorSegments(list, OPS)).toEqual<ColorSegment[]>([
+      { x0: 0, y0: 0, x1: 10, y1: 0, color: '#000000' },
+      { x0: 10, y0: 0, x1: 10, y1: 10, color: '#000000' },
+      { x0: 10, y0: 10, x1: 0, y1: 0, color: '#000000' },
+    ]);
+  });
 });

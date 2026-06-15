@@ -84,16 +84,85 @@ function transformArgsToMatrix(args: unknown): Matrix | null {
   return null;
 }
 
+/** DrawOPS opcodes in a pdfjs 6 constructPath path buffer. */
+const D_MOVE = 0;
+const D_LINE = 1;
+const D_CURVE = 2; // cubic: 6 floats (2 control points + endpoint)
+const D_QUAD = 3; // quadratic: 4 floats (1 control point + endpoint)
+const D_CLOSE = 4; // 0 floats
+
 /**
- * Pull the flat [op, x, y, op, x, y, ...] subpath arrays out of a constructPath
- * argument tuple. pdfjs passes `[opsArray, coordsArray]`; the reference walk
- * treats `argsArray[i][1]` as an array of flat triple-encoded subpaths.
+ * Extract the path buffer(s) from a constructPath arg tuple. pdfjs 6 passes
+ * `[fn, [Float32Array], minMax]`, where the Float32Array is a variable-stride
+ * DrawOPS stream (NOT the old flat [op,x,y] triples — the previous `Array.isArray`
+ * check silently dropped the typed array, so every real PDF yielded 0 segments).
+ * We accept a typed array OR a plain number[] (test fixtures) and tolerate
+ * multiple buffers in the container.
  */
-function constructPathSubpaths(args: unknown): number[][] {
+function constructPathBuffers(args: unknown): ArrayLike<number>[] {
   if (!Array.isArray(args)) return [];
-  const subpaths = args[1];
-  if (!Array.isArray(subpaths)) return [];
-  return subpaths.filter((s): s is number[] => Array.isArray(s) && s.every((n) => typeof n === 'number'));
+  const container = args[1];
+  if (container instanceof Float32Array) return [container];
+  if (Array.isArray(container)) {
+    return container.filter(
+      (b): b is ArrayLike<number> =>
+        b instanceof Float32Array || (Array.isArray(b) && b.every((n) => typeof n === 'number')),
+    );
+  }
+  return [];
+}
+
+/**
+ * Walk one DrawOPS stream, emitting a straight segment per lineTo, per curve
+ * (chord-flattened to its endpoint — floor plans are straight-walled), and per
+ * closePath. moveTo only repositions the pen + records the subpath start.
+ * Stride: moveTo/lineTo +2 floats, curveTo +6, quadraticCurveTo +4, closePath +0.
+ */
+function pushPathSegments(buf: ArrayLike<number>, ctm: Matrix, stroke: string, segs: ColorSegment[]): void {
+  let cx = 0;
+  let cy = 0; // pen, output space
+  let sx = 0;
+  let sy = 0; // subpath start, output space
+  const n = buf.length;
+  let k = 0;
+  while (k < n) {
+    const code = buf[k]!;
+    if (code === D_MOVE) {
+      if (k + 2 >= n) break;
+      [cx, cy] = apply(ctm, buf[k + 1]!, buf[k + 2]!);
+      sx = cx;
+      sy = cy;
+      k += 3;
+    } else if (code === D_LINE) {
+      if (k + 2 >= n) break;
+      const [X, Y] = apply(ctm, buf[k + 1]!, buf[k + 2]!);
+      segs.push({ x0: cx, y0: cy, x1: X, y1: Y, color: stroke });
+      cx = X;
+      cy = Y;
+      k += 3;
+    } else if (code === D_CURVE) {
+      if (k + 6 >= n) break;
+      const [X, Y] = apply(ctm, buf[k + 5]!, buf[k + 6]!);
+      segs.push({ x0: cx, y0: cy, x1: X, y1: Y, color: stroke });
+      cx = X;
+      cy = Y;
+      k += 7;
+    } else if (code === D_QUAD) {
+      if (k + 4 >= n) break;
+      const [X, Y] = apply(ctm, buf[k + 3]!, buf[k + 4]!);
+      segs.push({ x0: cx, y0: cy, x1: X, y1: Y, color: stroke });
+      cx = X;
+      cy = Y;
+      k += 5;
+    } else if (code === D_CLOSE) {
+      if (cx !== sx || cy !== sy) segs.push({ x0: cx, y0: cy, x1: sx, y1: sy, color: stroke });
+      cx = sx;
+      cy = sy;
+      k += 1;
+    } else {
+      break; // unknown opcode -> bail rather than desync the stride
+    }
+  }
 }
 
 /**
@@ -140,25 +209,7 @@ export function operatorListToColorSegments(
       const hex = strokeArgsToHex(a);
       if (hex) stroke = hex;
     } else if (fn === OPS.constructPath) {
-      for (const sub of constructPathSubpaths(a)) {
-        let cx = 0;
-        let cy = 0;
-        let started = false;
-        for (let k = 0; k + 2 < sub.length; k += 3) {
-          const op = sub[k]!;
-          const [X, Y] = apply(ctm, sub[k + 1]!, sub[k + 2]!);
-          // op === 0 is moveTo / subpath start: it only repositions the pen.
-          if (op === 0 || !started) {
-            cx = X;
-            cy = Y;
-            started = true;
-          } else {
-            segs.push({ x0: cx, y0: cy, x1: X, y1: Y, color: stroke });
-            cx = X;
-            cy = Y;
-          }
-        }
-      }
+      for (const buf of constructPathBuffers(a)) pushPathSegments(buf, ctm, stroke, segs);
     }
   }
 

@@ -2,6 +2,7 @@ import { Component, useMemo, type ReactNode } from 'react';
 import * as THREE from 'three';
 import { useGLTF } from '@react-three/drei';
 import type { FurnitureObject } from '@lib/scene/schemas';
+import { traceDevError } from '../../store/error-store';
 
 const MM = 0.001;
 
@@ -46,6 +47,11 @@ export class GltfErrorBoundary extends Component<{ fallback: ReactNode; children
   override state = { failed: false };
   static getDerivedStateFromError() {
     return { failed: true };
+  }
+  override componentDidCatch(error: Error): void {
+    // Graceful fallback to the procedural mesh — no user toast, but dev-trace it
+    // so a model that fails to load/parse is visible while testing.
+    traceDevError('GltfFurniture (fell back to procedural)', error, 'render');
   }
   override render(): ReactNode {
     return this.state.failed ? this.props.fallback : this.props.children;

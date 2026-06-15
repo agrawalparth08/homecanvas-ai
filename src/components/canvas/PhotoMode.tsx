@@ -7,6 +7,7 @@ import type { AssetCacheManifest } from '@lib/assets/manifest';
 import type { HomeScene } from '@lib/scene/schemas';
 import { assetUrl, fetchAssetManifest } from '../../api';
 import { useEditor } from '../../store/editor-store';
+import { reportError } from '../../store/error-store';
 import { FloorContent } from './FloorContent';
 import { useMaterialMap } from './materials';
 
@@ -128,7 +129,12 @@ function PathTracerDriver({
           }, 'image/png');
         });
       } catch (e) {
-        console.error('Photo Mode failed to start', e);
+        // Surface as a toast (a dead Photo Mode is user-visible) — reportError
+        // also dev-traces it to the console + window.__homecanvasErrors.
+        reportError('Photo Mode failed to start', {
+          kind: 'render',
+          detail: e instanceof Error ? (e.stack ?? e.message) : String(e),
+        });
         onState({ samples: 0, ready: false });
       }
     })();

@@ -1,6 +1,7 @@
 import type { AssetCacheManifest } from '@lib/assets/manifest';
 import { migrateSceneDocument } from '@lib/scene/migrations';
 import type { DesignVariant, HomeScene, PrivateHomeFileManifest, VariantMeta } from '@lib/scene/schemas';
+import { traceDevError } from './store/error-store';
 
 /** Thin client for the local sidecar (proxied via /api). */
 
@@ -17,7 +18,8 @@ export async function fetchPrivateManifest(): Promise<PrivateHomeFileManifest | 
       await fetch('/api/private-home/manifest'),
     );
     return data.manifest;
-  } catch {
+  } catch (e) {
+    traceDevError('fetchPrivateManifest', e, 'network');
     return null;
   }
 }
@@ -26,7 +28,8 @@ export async function fetchScene(projectId: ProjectId): Promise<HomeScene | null
   try {
     const data = await json<{ scene: unknown | null }>(await fetch(`/api/scenes/${projectId}`));
     return data.scene ? migrateSceneDocument(data.scene) : null;
-  } catch {
+  } catch (e) {
+    traceDevError('fetchScene', e, 'network');
     return null;
   }
 }
@@ -39,7 +42,8 @@ export async function persistScene(projectId: ProjectId, scene: HomeScene): Prom
       body: JSON.stringify(scene),
     });
     return res.ok;
-  } catch {
+  } catch (e) {
+    traceDevError('persistScene', e, 'network');
     return false;
   }
 }
@@ -48,7 +52,8 @@ export async function fetchVariants(projectId: ProjectId): Promise<VariantMeta[]
   try {
     const data = await json<{ variants: VariantMeta[] }>(await fetch(`/api/variants/${projectId}`));
     return data.variants;
-  } catch {
+  } catch (e) {
+    traceDevError('fetchVariants', e, 'network');
     return [];
   }
 }
@@ -59,7 +64,8 @@ export async function fetchVariant(projectId: ProjectId, variantId: string): Pro
       await fetch(`/api/variants/${projectId}/${variantId}`),
     );
     return data.variant;
-  } catch {
+  } catch (e) {
+    traceDevError('fetchVariant', e, 'network');
     return null;
   }
 }
@@ -72,7 +78,8 @@ export async function saveVariantRemote(projectId: ProjectId, variant: DesignVar
       body: JSON.stringify(variant),
     });
     return res.ok;
-  } catch {
+  } catch (e) {
+    traceDevError('saveVariantRemote', e, 'network');
     return false;
   }
 }
@@ -80,7 +87,8 @@ export async function saveVariantRemote(projectId: ProjectId, variant: DesignVar
 export async function fetchAssetManifest(): Promise<AssetCacheManifest> {
   try {
     return await json<AssetCacheManifest>(await fetch('/api/assets/manifest'));
-  } catch {
+  } catch (e) {
+    traceDevError('fetchAssetManifest', e, 'network');
     return { schemaVersion: 1, downloadedAt: '', hdris: {}, textures: {}, models: {} };
   }
 }
@@ -102,7 +110,8 @@ export async function autoTracePrivate(filePath: string): Promise<{ ok: boolean;
       body: JSON.stringify({ filePath }),
     });
     return (await res.json()) as { ok: boolean; count?: number; reason?: string };
-  } catch {
+  } catch (e) {
+    traceDevError('autoTracePrivate', e, 'network');
     return { ok: false, reason: 'request failed' };
   }
 }
@@ -124,6 +133,7 @@ export async function buildSceneFromPlan(plan: unknown): Promise<BuildSceneResul
     });
     return (await res.json()) as BuildSceneResult;
   } catch (e) {
+    traceDevError('buildSceneFromPlan', e, 'network');
     return { ok: false, reason: (e as Error).message };
   }
 }
@@ -138,7 +148,8 @@ export async function uploadPrivateFile(name: string, dataUrl: string): Promise<
     });
     if (!res.ok) return null;
     return ((await res.json()) as { filePath: string }).filePath;
-  } catch {
+  } catch (e) {
+    traceDevError('uploadPrivateFile', e, 'network');
     return null;
   }
 }
@@ -154,7 +165,8 @@ export async function saveRasterizedPage(name: string, dataUrl: string): Promise
     if (!res.ok) return null;
     const data = (await res.json()) as { filePath: string };
     return data.filePath;
-  } catch {
+  } catch (e) {
+    traceDevError('saveRasterizedPage', e, 'network');
     return null;
   }
 }
@@ -167,7 +179,8 @@ export async function saveManualScene(scene: HomeScene): Promise<boolean> {
       body: JSON.stringify(scene),
     });
     return res.ok;
-  } catch {
+  } catch (e) {
+    traceDevError('saveManualScene', e, 'network');
     return false;
   }
 }

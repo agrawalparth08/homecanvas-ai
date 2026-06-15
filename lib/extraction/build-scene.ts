@@ -180,7 +180,10 @@ export function buildSceneFromPrimitives(plan: PrimitivePlan, opts: BuildSceneOp
     // then drop the giant bbox-spanning phantom the seal creates on non-convex /
     // stray-geometry footprints (no residential room exceeds ~250 m²).
     const rects = detectRoomsSealed(healWalls(lines, { maxGap: 1100 }), { coordTol: 10, minArea: 900 * 900 }).filter(
-      (r) => (r.x1 - r.x0) * (r.y1 - r.y0) <= 250e6,
+      // drop the bbox-spanning phantom (no residential room > ~250 m²) AND thin
+      // slivers (min side < 500mm) — e.g. the gap a wall overhanging its corner
+      // carves off against the sealed perimeter; no real room is that narrow.
+      (r) => (r.x1 - r.x0) * (r.y1 - r.y0) <= 250e6 && Math.min(r.x1 - r.x0, r.y1 - r.y0) >= 500,
     );
     rects.forEach((r, i) => {
       const id = slugId('room', `r${i + 1}`, usedIds);

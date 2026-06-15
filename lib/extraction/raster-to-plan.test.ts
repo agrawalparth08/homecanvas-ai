@@ -36,7 +36,9 @@ describe('primitivePlanFromMask', () => {
     expect(validateScene(scene).length).toBe(0); // no validation issues
     const floor = scene.floors[0]!;
     expect(floor.walls).toHaveLength(4);
-    expect(floor.rooms.length).toBeGreaterThanOrEqual(1);
+    // exactly one room: the sliver-side filter drops the thin gaps the wall
+    // overhangs carve off the sealed perimeter (it used to report 3).
+    expect(floor.rooms).toHaveLength(1);
   });
 
   it('emits no walls for an all-empty mask', () => {

@@ -36,7 +36,7 @@ function GuidedEmptyState() {
         </ol>
         <div className="mt-4 flex gap-2">
           <button
-            onClick={startFromSample}
+            onClick={() => void startFromSample()}
             className="rounded bg-accent/20 px-3 py-2 text-sm text-accent hover:bg-accent/30"
           >
             Start from sample home

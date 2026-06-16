@@ -8,15 +8,17 @@ import { resolveColor, resolveFurniture, resolveMaterial, resolveStylePack, STYL
 export type SurfaceTarget = 'floor' | 'walls' | 'ceiling' | 'all';
 
 export interface ParsedIntent {
-  action: 'recolor' | 'material' | 'style' | 'variants' | 'furniture' | 'revert' | 'unknown';
+  action: 'recolor' | 'material' | 'style' | 'variants' | 'furniture' | 'removeFurniture' | 'revert' | 'unknown';
   surface: SurfaceTarget;
   color?: string;
   materialId?: string;
   stylePackId?: string;
   /** For 'variants': how many distinct options to generate (2–5, default 3). */
   count?: number;
-  /** For 'furniture': catalog key of the piece to add. */
+  /** For 'furniture' / 'removeFurniture': catalog key of the piece to add / remove. */
   furnitureKey?: string;
+  /** For 'removeFurniture': clear every piece in the target room (vs only the named one). */
+  removeAll?: boolean;
   wholeHome: boolean;
   reason?: string;
 }
@@ -41,6 +43,17 @@ export function parseIntent(message: string): ParsedIntent {
         : 'all';
 
   if (/\b(undo|revert|go back|never ?mind|cancel that)\b/.test(t)) return { action: 'revert', surface, wholeHome };
+
+  // "remove the sofa", "delete the coffee table from the lounge", "clear the furniture",
+  // "empty the bedroom", "declutter the room". A named piece removes just that kind;
+  // a furniture-wide signal clears the whole room.
+  if (/\b(remove|delete|get ?rid of|clear|empty|declutter|take out)\b/.test(t)) {
+    const f = resolveFurniture(t);
+    if (f) return { action: 'removeFurniture', surface: 'all', furnitureKey: f.value, removeAll: false, wholeHome };
+    if (/\b(furniture|furnishings?|everything|empty|declutter|clear out|all of it)\b/.test(t)) {
+      return { action: 'removeFurniture', surface: 'all', removeAll: true, wholeHome };
+    }
+  }
 
   // "3 variants of the master bedroom", "show me options for the kitchen".
   if (/\b(variants?|variations?|options?|alternatives?)\b/.test(t)) {

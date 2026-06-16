@@ -7,7 +7,7 @@
  */
 import { makePatch, type PatchOp, type ScenePatch, type SurfaceRef } from '../scene/patching';
 import type { HomeScene, Room } from '../scene/schemas';
-import { findWall } from '../scene/selectors';
+import { findWall, lockedEntityIds } from '../scene/selectors';
 import { buildStylePackApplication, wallSideFacingRoom } from '../styles/apply';
 import { getStylePack, STYLE_PACKS } from '../styles/style-packs';
 import { CATALOG, isCatalogKey, placeFurnitureInRoom, uniqueFurnitureId } from '../furniture/catalog';
@@ -142,6 +142,41 @@ export const mockAgentProvider: AgentProvider = {
   async proposeEdits(message: string, ctx: AgentRequestContext): Promise<AgentEditProposal[]> {
     const intent = parseIntent(message);
     if (intent.action === 'revert' || intent.action === 'unknown') return [];
+
+    if (intent.action === 'removeFurniture') {
+      const rooms = targetRooms(message, ctx.scene, ctx, intent.wholeHome);
+      if (rooms.length === 0) return [];
+      const key = intent.furnitureKey;
+      const item = key && isCatalogKey(key) ? CATALOG[key] : null; // a named piece → only that kind
+      const locked = lockedEntityIds(ctx.scene);
+      const ops: PatchOp[] = [];
+      const skipped: string[] = [];
+      for (const room of rooms) {
+        if (locked.has(room.id)) continue; // a locked room rejects furnitureIds mutation — skip it entirely
+        const floor = ctx.scene.floors.find((f) => f.rooms.some((r) => r.id === room.id));
+        if (!floor) continue;
+        for (const o of floor.objects) {
+          if (o.roomId !== room.id) continue;
+          if (item && o.category !== item.category) continue;
+          if (locked.has(o.id)) { skipped.push(o.id); continue; } // can't delete a locked piece
+          ops.push({ type: 'remove_object', objectId: o.id });
+        }
+      }
+      if (ops.length === 0) return []; // nothing matched / everything locked
+      const where = intent.wholeHome ? 'the whole home' : rooms.map((r) => r.name).join(', ');
+      const what = item ? item.name : 'all furniture';
+      const summary = `Remove ${what} from ${where}`;
+      const patch = makePatch(summary, ops, 'agent');
+      return [{
+        id: patch.id,
+        summary,
+        target: where,
+        patch,
+        rationale: `Deletes ${ops.length} piece${ops.length === 1 ? '' : 's'}.`,
+        confidence: 0.78,
+        skippedLocked: skipped,
+      }];
+    }
 
     if (intent.action === 'furniture') {
       const key = intent.furnitureKey;

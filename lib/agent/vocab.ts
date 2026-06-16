@@ -57,7 +57,12 @@ function longestMatch(text: string, table: Record<string, string>): { phrase: st
   const t = text.toLowerCase();
   let best: { phrase: string; value: string } | null = null;
   for (const [phrase, value] of Object.entries(table)) {
-    if (t.includes(phrase) && (!best || phrase.length > best.phrase.length)) best = { phrase, value };
+    // Whole-word match (not substring) so e.g. "bed" matches "bed" but NOT "bedroom",
+    // while multi-word phrases ("coffee table", "grey marble") still match — and a
+    // space in the phrase also matches a hyphen ("coffee-table"). Longest wins.
+    const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/ /g, '[\\s-]+');
+    const re = new RegExp(`\\b${escaped}\\b`);
+    if (re.test(t) && (!best || phrase.length > best.phrase.length)) best = { phrase, value };
   }
   return best;
 }

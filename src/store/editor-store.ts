@@ -56,7 +56,7 @@ interface EditorState {
   pendingImport: PendingImport | null;
 
   loadProject: (projectId: ProjectId) => Promise<void>;
-  startFromSample: () => void;
+  startFromSample: () => Promise<void>;
   /** Inject a scene directly (e.g. a freshly traced home) and persist it. */
   loadSceneObject: (projectId: ProjectId, scene: HomeScene) => void;
   applyPatch: (patch: ScenePatch) => boolean;
@@ -169,8 +169,18 @@ export const useEditor = create<EditorState>((set, get) => ({
     logEvent('app', guidedEmpty ? `Started guided tracing for “${projectId}”` : `Loaded project “${projectId}”`);
   },
 
-  startFromSample: () => {
+  startFromSample: async () => {
     const { projectId } = get();
+    // SAFETY: never overwrite an existing on-disk scene. The "no scene" state that
+    // surfaces this button can be a transient fetch error, not a truly empty
+    // project — so re-check first. If a real scene exists (e.g. a traced my-home),
+    // LOAD it instead of clobbering it with the sample. This is self-healing.
+    const existing = await fetchScene(projectId);
+    if (existing) {
+      logEvent('app', `Recovered the existing “${projectId}” scene (did not overwrite with the sample)`, { level: 'warn' });
+      set({ scene: existing, baseline: existing, guidedEmpty: false, activeFloorId: existing.floors[0]?.id ?? null });
+      return;
+    }
     const scene = { ...buildSampleHome(), id: projectId, name: 'My Home (started from sample)' };
     set({ scene, baseline: scene, guidedEmpty: false, activeFloorId: scene.floors[0]!.id });
     void persistScene(projectId, scene);

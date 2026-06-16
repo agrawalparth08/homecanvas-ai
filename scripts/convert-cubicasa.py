@@ -62,10 +62,15 @@ def main():
     # Build the model exactly as the repo's eval.py does (44 outputs = 21 heatmaps
     # + 12 rooms + 11 icons) and load the checkpoint.
     import torch.nn as nn
-    from floortrans.models import get_model
+    # Build the architecture directly instead of via get_model(): get_model()
+    # also calls model.init_weights(), which loads an MPII backbone-pretraining
+    # file (floortrans/models/model_1427.pth) the repo never ships — and we don't
+    # need it, because the full trained checkpoint loaded below overwrites every
+    # weight anyway. Importing the class skips that dead (crashing) init step.
+    from floortrans.models.hg_furukawa_original import hg_furukawa_original
 
     n_classes = 44
-    model = get_model("hg_furukawa_original", 51)
+    model = hg_furukawa_original(n_classes=51)
     model.conv4_ = nn.Conv2d(256, n_classes, bias=True, kernel_size=1)
     model.upsample = nn.ConvTranspose2d(n_classes, n_classes, kernel_size=4, stride=4)
     checkpoint = torch.load(WEIGHTS, map_location="cpu", weights_only=False)

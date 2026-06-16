@@ -32,6 +32,7 @@
     "dxf": "^5.3.1",
     "hono": "4.12.25",
     "immer": "11.1.8",
+    "onnxruntime-node": "^1.26.0",
     "pdfjs-dist": "^6.0.227",
     "react": "19.2.7",
     "react-dom": "19.2.7",

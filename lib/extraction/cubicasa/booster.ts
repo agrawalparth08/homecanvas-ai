@@ -10,7 +10,7 @@
  * Split so the deterministic parts (preprocess, argmax, mask→plan) are unit-tested
  * even without the model/runtime; only `runCubicasaBooster` needs onnxruntime.
  */
-import { argmaxClassMap, cubicasaSegToPlan } from './masks-to-plan';
+import { argmaxClassMap, cubicasaSegToPlan, type CubicasaSeg } from './masks-to-plan';
 import type { RasterWallOptions } from '../raster-walls';
 import type { PrimitivePlan } from '../primitive-plan';
 
@@ -34,9 +34,12 @@ export interface RgbaImage {
 }
 
 /**
- * Bilinear-resize an RGBA image to dst×dst and normalize to a CHW Float32 tensor
- * in [0,1] (3 channels, alpha dropped). Pure + deterministic — the model-input
- * prep, testable without onnxruntime.
+ * Nearest-resize an RGBA image to dst×dst and normalize to a CHW Float32 tensor
+ * in [-1, 1] — CubiCasa5k's training normalization `2*(x/255) - 1` (see the repo's
+ * floortrans/loaders/svg_loader.py). Feeding [0,1] runs without error but shifts
+ * every input out of the trained range and degrades predictions. 3 channels,
+ * alpha dropped. Pure + deterministic — the model-input prep, testable without
+ * onnxruntime.
  */
 export function resizeNormalizeChw(image: RgbaImage, dstW: number, dstH: number): Float32Array {
   const { data, width: sw, height: sh } = image;
@@ -44,7 +47,7 @@ export function resizeNormalizeChw(image: RgbaImage, dstW: number, dstH: number)
   const sampleAt = (sx: number, sy: number, ch: number): number => {
     const xi = Math.min(sw - 1, Math.max(0, Math.round(sx)));
     const yi = Math.min(sh - 1, Math.max(0, Math.round(sy)));
-    return (data[(yi * sw + xi) * 4 + ch] ?? 0) / 255;
+    return 2 * ((data[(yi * sw + xi) * 4 + ch] ?? 0) / 255) - 1;
   };
   for (let y = 0; y < dstH; y++) {
     for (let x = 0; x < dstW; x++) {
@@ -57,6 +60,59 @@ export function resizeNormalizeChw(image: RgbaImage, dstW: number, dstH: number)
     }
   }
   return out;
+}
+
+export interface FitResult {
+  /** CHW Float32 [-1,1] tensor, dst×dst, source fit top-left, background-padded. */
+  tensor: Float32Array;
+  /** Content box (≤ dst) the source maps into; the remainder is padding. */
+  contentW: number;
+  contentH: number;
+  /** Uniform source→dst pixel scale (dst_px = src_px * scale). */
+  scale: number;
+}
+
+/**
+ * Aspect-PRESERVING fit of an RGBA image into a dst×dst, white-padded CHW [-1,1]
+ * tensor. A plain resize-to-square squashes a non-square plan (e.g. 998×1418 → a
+ * 30% distortion) AND loses the real-world scale; this instead fits the long side
+ * to dst, pads the rest as background (white → +1), and returns the content box +
+ * scale so the caller can crop the padding and correct mmPerPx by the downscale.
+ * Pure + deterministic.
+ */
+export function fitNormalizeChw(image: RgbaImage, dst: number): FitResult {
+  const { data, width: sw, height: sh } = image;
+  const scale = dst / Math.max(sw, sh);
+  const cw = Math.min(dst, Math.max(1, Math.round(sw * scale)));
+  const ch = Math.min(dst, Math.max(1, Math.round(sh * scale)));
+  const plane = dst * dst;
+  const out = new Float32Array(3 * plane).fill(1); // white background → +1 in [-1,1]
+  const sample = (sx: number, sy: number, c: number): number => {
+    const xi = Math.min(sw - 1, Math.max(0, Math.round(sx)));
+    const yi = Math.min(sh - 1, Math.max(0, Math.round(sy)));
+    return 2 * ((data[(yi * sw + xi) * 4 + c] ?? 0) / 255) - 1;
+  };
+  for (let y = 0; y < ch; y++) {
+    for (let x = 0; x < cw; x++) {
+      const sx = cw === sw ? x : (x / Math.max(1, cw - 1)) * (sw - 1);
+      const sy = ch === sh ? y : (y / Math.max(1, ch - 1)) * (sh - 1);
+      const p = y * dst + x;
+      out[0 * plane + p] = sample(sx, sy, 0);
+      out[1 * plane + p] = sample(sx, sy, 1);
+      out[2 * plane + p] = sample(sx, sy, 2);
+    }
+  }
+  return { tensor: out, contentW: cw, contentH: ch, scale };
+}
+
+/** Crop a dst×dst seg to its top-left content box, dropping the fit padding. */
+function cropSeg(seg: CubicasaSeg, w: number, h: number): CubicasaSeg {
+  if (w === seg.width && h === seg.height) return seg;
+  const classMap = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) classMap[y * w + x] = seg.classMap[y * seg.width + x] ?? 0;
+  }
+  return { width: w, height: h, classMap };
 }
 
 interface Onnx {
@@ -107,21 +163,26 @@ export async function runCubicasaBooster(cfg: CubicasaConfig): Promise<Primitive
   const ort = await loadOnnx();
   if (!ort) return null;
   try {
-    const input = resizeNormalizeChw(cfg.image, CUBICASA_INPUT.width, CUBICASA_INPUT.height);
+    const dst = CUBICASA_INPUT.width; // 512² square input
+    // Aspect-preserving fit (not a square squash) so wall geometry isn't distorted.
+    const fit = fitNormalizeChw(cfg.image, dst);
     const session = await ort.InferenceSession.create(cfg.model);
-    const tensor = new ort.Tensor('float32', input, [1, 3, CUBICASA_INPUT.height, CUBICASA_INPUT.width]);
+    const tensor = new ort.Tensor('float32', fit.tensor, [1, 3, dst, dst]);
     const out = await session.run({ [session.inputNames[0]!]: tensor });
     const logits = out[session.outputNames[0]!]!.data; // [44, H, W] (CHW): heatmaps + rooms + icons
     const seg = argmaxClassMap(
       logits,
-      CUBICASA_INPUT.width,
-      CUBICASA_INPUT.height,
+      dst,
+      dst,
       CUBICASA_INPUT.roomClasses,
       'CHW',
       CUBICASA_INPUT.roomOffset, // skip the 21 heatmap channels → the 12 room channels
       CUBICASA_INPUT.totalChannels,
     );
-    return cubicasaSegToPlan(seg, cfg.wall);
+    // Drop the fit padding and correct mmPerPx by the downscale (each fitted pixel
+    // spans 1/scale source pixels), so the plan comes out at the right real size.
+    const cropped = cropSeg(seg, fit.contentW, fit.contentH);
+    return cubicasaSegToPlan(cropped, { ...cfg.wall, mmPerPx: cfg.wall.mmPerPx / fit.scale });
   } catch {
     // Bad/unsupported model export or unexpected output shape → graceful fallback
     // to the heuristic pipeline rather than crashing the extraction.

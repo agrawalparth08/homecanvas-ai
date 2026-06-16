@@ -4,6 +4,7 @@ import { fetchVariants } from '../../api';
 import { Button } from '../ui/Button';
 import { Icon, type IconName } from '../ui/Icon';
 import { useEditor, type ViewMode } from '../../store/editor-store';
+import { reportError } from '../../store/error-store';
 
 const VIEW_MODES: { id: ViewMode; label: string; icon: IconName }[] = [
   { id: 'orbit', label: 'Orbit', icon: 'orbit' },
@@ -70,6 +71,43 @@ export function BottomBar() {
   });
   const [saving, setSaving] = useState(false);
 
+  // Optional "quality ceiling": a headless Blender Cycles render of the scene.
+  // Only offered when the sidecar finds a Blender binary.
+  const { data: blenderAvailable = false } = useQuery({
+    queryKey: ['blender-available'],
+    queryFn: () => fetch('/api/render/blender/available').then((r) => r.json()).then((d: { available: boolean }) => d.available).catch(() => false),
+    staleTime: Infinity,
+  });
+  const [rendering, setRendering] = useState(false);
+
+  const renderBlender = async () => {
+    if (!scene) return;
+    setRendering(true);
+    try {
+      const res = await fetch('/api/render/blender', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scene, samples: 160, res: '1600x1000', gpu: true }),
+      });
+      if (!res.ok) {
+        const reason = (await res.json().catch(() => ({})) as { error?: string }).error ?? `${res.status}`;
+        reportError(`Blender render failed: ${reason}`, { kind: 'runtime' });
+        return;
+      }
+      const url = URL.createObjectURL(await res.blob());
+      window.open(url, '_blank');
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `homecanvas-cycles-${Date.now()}.png`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 30_000);
+    } catch (e) {
+      reportError(`Blender render failed: ${(e as Error).message}`, { kind: 'runtime' });
+    } finally {
+      setRendering(false);
+    }
+  };
+
   const onSave = async () => {
     const name = window.prompt('Variant name (e.g. "Japandi Option")');
     if (!name) return;
@@ -123,6 +161,18 @@ export function BottomBar() {
         <Button variant="primary" size="sm" icon="sparkles" onClick={() => setPhotoMode(true)} title="Photoreal path-traced render (GPU)">
           Photoreal
         </Button>
+        {blenderAvailable && (
+          <Button
+            variant="secondary"
+            size="sm"
+            icon="camera"
+            onClick={() => void renderBlender()}
+            disabled={rendering || !scene}
+            title="Max-quality ray-traced still via your local Blender Cycles (slower; opens when done)"
+          >
+            {rendering ? 'Rendering…' : 'Cycles'}
+          </Button>
+        )}
 
         <span className="mx-0.5 h-5 w-px bg-panel-border" />
 

@@ -10,6 +10,7 @@ import { parsePrimitivePlan } from '../lib/extraction/primitive-plan';
 import { bridgeEnabled, readResult, writeRequest } from './bridge';
 import { autoAnswer, bridgeAutoEnabled } from './bridge-auto';
 import { buildSceneExport } from './export';
+import { detectBlender, readRender, renderWithBlender } from './adapters/blender';
 import { DesignVariantSchema, HomeSceneSchema } from '../lib/scene/schemas';
 import { hasErrors, validateScene } from '../lib/scene/validation';
 import { EMPTY_ASSET_MANIFEST } from '../lib/assets/manifest';
@@ -64,6 +65,25 @@ app.use('*', async (c, next) => {
 });
 
 app.get('/api/health', (c) => c.json({ ok: true, name: 'homecanvas-sidecar' }));
+
+// Optional "max quality" render via headless Blender Cycles (the quality ceiling).
+app.get('/api/render/blender/available', (c) => c.json({ available: !!detectBlender() }));
+
+app.post('/api/render/blender', async (c) => {
+  const body = (await c.req.json().catch(() => null)) as
+    | { scene?: unknown; samples?: number; res?: string; gpu?: boolean; hdri?: string }
+    | null;
+  const parsed = HomeSceneSchema.safeParse(body?.scene);
+  if (!parsed.success) return c.json({ error: 'invalid scene' }, 400);
+  const result = await renderWithBlender(parsed.data, {
+    samples: typeof body?.samples === 'number' ? body.samples : 128,
+    res: typeof body?.res === 'string' ? body.res : '1280x800',
+    gpu: body?.gpu === true,
+    ...(typeof body?.hdri === 'string' ? { hdri: body.hdri } : {}),
+  });
+  if (!result.ok) return c.json({ error: result.reason }, 503);
+  return c.body(await readRender(result.pngPath), 200, { 'Content-Type': 'image/png', 'Cache-Control': 'no-store' });
+});
 
 // ---------------------------------------------------------------------------
 // private home manifest

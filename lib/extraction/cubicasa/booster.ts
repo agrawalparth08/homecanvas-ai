@@ -14,8 +14,18 @@ import { argmaxClassMap, cubicasaSegToPlan } from './masks-to-plan';
 import type { RasterWallOptions } from '../raster-walls';
 import type { PrimitivePlan } from '../primitive-plan';
 
-/** Model I/O geometry (the published 512² CubiCasa5k; room head = 12 classes). */
-export const CUBICASA_INPUT = { width: 512, height: 512, roomClasses: 12 } as const;
+/**
+ * Model I/O geometry of the published 512² CubiCasa5k. Its single output is 44
+ * channels = 21 junction heatmaps + 12 room classes (starting at `roomOffset`) +
+ * 11 icon classes. We only need the room slice; wall is room-class index 2.
+ */
+export const CUBICASA_INPUT = {
+  width: 512,
+  height: 512,
+  totalChannels: 44,
+  roomOffset: 21,
+  roomClasses: 12,
+} as const;
 
 export interface RgbaImage {
   data: Uint8ClampedArray | Uint8Array;
@@ -61,13 +71,17 @@ interface OnnxSession {
 
 /** Lazily load onnxruntime-web as an OPTIONAL peer — never a hard build/runtime dep. */
 async function loadOnnx(): Promise<Onnx | null> {
-  try {
-    // Opaque specifier so neither vite nor tsc hard-requires the optional peer dep.
-    const spec = ['onnxruntime', 'web'].join('-');
-    return (await import(/* @vite-ignore */ spec)) as unknown as Onnx;
-  } catch {
-    return null;
+  // Try the Node runtime first (the sidecar runs inference), then web/WASM.
+  // Opaque specifiers so neither vite nor tsc hard-requires these optional peers.
+  for (const parts of [['onnxruntime', 'node'], ['onnxruntime', 'web']]) {
+    try {
+      const mod = (await import(/* @vite-ignore */ parts.join('-'))) as unknown as Onnx;
+      if (mod?.InferenceSession) return mod;
+    } catch {
+      // try the next runtime
+    }
   }
+  return null;
 }
 
 /** True when onnxruntime-web is installed (the model is still supplied per call). */
@@ -97,8 +111,16 @@ export async function runCubicasaBooster(cfg: CubicasaConfig): Promise<Primitive
     const session = await ort.InferenceSession.create(cfg.model);
     const tensor = new ort.Tensor('float32', input, [1, 3, CUBICASA_INPUT.height, CUBICASA_INPUT.width]);
     const out = await session.run({ [session.inputNames[0]!]: tensor });
-    const roomLogits = out[session.outputNames[0]!]!.data; // [roomClasses, H, W] (CHW)
-    const seg = argmaxClassMap(roomLogits, CUBICASA_INPUT.width, CUBICASA_INPUT.height, CUBICASA_INPUT.roomClasses, 'CHW');
+    const logits = out[session.outputNames[0]!]!.data; // [44, H, W] (CHW): heatmaps + rooms + icons
+    const seg = argmaxClassMap(
+      logits,
+      CUBICASA_INPUT.width,
+      CUBICASA_INPUT.height,
+      CUBICASA_INPUT.roomClasses,
+      'CHW',
+      CUBICASA_INPUT.roomOffset, // skip the 21 heatmap channels → the 12 room channels
+      CUBICASA_INPUT.totalChannels,
+    );
     return cubicasaSegToPlan(seg, cfg.wall);
   } catch {
     // Bad/unsupported model export or unexpected output shape → graceful fallback

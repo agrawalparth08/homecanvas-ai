@@ -19,6 +19,7 @@
     "init:private": "tsx scripts/init-private-folders.ts",
     "detect:private": "tsx scripts/detect-private-home-files.ts",
     "fetch:assets": "tsx scripts/fetch-assets.ts",
+    "convert:cubicasa": "python3 scripts/convert-cubicasa.py",
     "bridge:pending": "tsx scripts/bridge-pending.ts"
   },
   "dependencies": {

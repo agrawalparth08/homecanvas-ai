@@ -6,7 +6,7 @@ import { maskFromGrayscale } from '@lib/extraction/image-mask';
 import { adaptiveMaskFromGrayscale } from '@lib/extraction/adaptive-mask';
 import { estimateSkewAngle, rotateMask } from '@lib/extraction/deskew';
 import { primitivePlanFromMask } from '@lib/extraction/raster-to-plan';
-import type { PrimitivePlan } from '@lib/extraction/primitive-plan';
+import { parsePrimitivePlan, type PrimitivePlan } from '@lib/extraction/primitive-plan';
 import { ocrAutoScale } from './ocr-scale';
 
 /** Fraction of wall (true) pixels in a mask — used to spot a bad global threshold. */
@@ -60,6 +60,10 @@ export async function planFromImage(src: string, mmPerPx: number): Promise<Primi
   if (!ctx) throw new Error('could not get 2d canvas context');
   ctx.drawImage(img, 0, 0);
   const { data } = ctx.getImageData(0, 0, w, h);
+  // Optional CubiCasa5k booster: if the sidecar has the converted model, let it
+  // predict the walls (usually far better than heuristic CV). Silent fallback.
+  const boosted = await tryCubicasaBoost(data, w, h, mmPerPx);
+  if (boosted) return boosted;
   const gray = new Uint8Array(w * h);
   for (let i = 0; i < w * h; i++) {
     // Rec. 601 luma; alpha ignored (white-matted PDFs/scans read as paper).
@@ -79,6 +83,36 @@ export async function planFromImage(src: string, mmPerPx: number): Promise<Primi
   const angle = estimateSkewAngle(base);
   const mask = Math.abs(angle) > 0.005 ? rotateMask(base, angle) : base;
   return primitivePlanFromMask(mask, { mmPerPx: ocrMmPerPx ?? mmPerPx });
+}
+
+/**
+ * Try the optional CubiCasa5k booster on the sidecar. Sends raw RGBA pixels and
+ * returns its PrimitivePlan, or null if the booster is unavailable / errors (the
+ * caller then uses the heuristic CV path). Never throws.
+ */
+async function tryCubicasaBoost(
+  rgba: Uint8ClampedArray,
+  w: number,
+  h: number,
+  mmPerPx: number,
+): Promise<PrimitivePlan | null> {
+  try {
+    const available = await fetch('/api/extract/cubicasa/available')
+      .then((r) => r.json())
+      .then((d: { available?: boolean }) => d.available === true)
+      .catch(() => false);
+    if (!available) return null;
+    const res = await fetch(`/api/extract/cubicasa?w=${w}&h=${h}&mmPerPx=${mmPerPx}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: rgba.buffer as ArrayBuffer,
+    });
+    if (!res.ok) return null;
+    const { plan } = (await res.json()) as { plan: unknown };
+    return parsePrimitivePlan(plan);
+  } catch {
+    return null;
+  }
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {

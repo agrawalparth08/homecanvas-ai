@@ -47,6 +47,11 @@ export function argmaxClassMap(
   height: number,
   classes: number,
   layout: 'CHW' | 'HWC' = 'CHW',
+  /** Channel index of class 0 — lets you argmax a SLICE of a wider tensor (the
+   *  real CubiCasa head is 44 ch = 21 heatmaps + 12 rooms@21 + 11 icons). */
+  channelOffset = 0,
+  /** Total channels per pixel, for HWC striding (defaults to `classes`). */
+  totalChannels: number = classes,
 ): CubicasaSeg {
   const n = width * height;
   const classMap = new Uint8Array(n);
@@ -54,7 +59,8 @@ export function argmaxClassMap(
     let best = 0;
     let bestV = -Infinity;
     for (let c = 0; c < classes; c++) {
-      const v = (layout === 'CHW' ? logits[c * n + i] : logits[i * classes + c]) ?? -Infinity;
+      const idx = layout === 'CHW' ? (channelOffset + c) * n + i : i * totalChannels + channelOffset + c;
+      const v = logits[idx] ?? -Infinity;
       if (v > bestV) {
         bestV = v;
         best = c;

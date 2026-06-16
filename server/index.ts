@@ -11,6 +11,7 @@ import { bridgeEnabled, readResult, writeRequest } from './bridge';
 import { autoAnswer, bridgeAutoEnabled } from './bridge-auto';
 import { buildSceneExport } from './export';
 import { detectBlender, readRender, renderWithBlender } from './adapters/blender';
+import { cubicasaAvailable, runCubicasaSidecar } from './adapters/cubicasa';
 import { DesignVariantSchema, HomeSceneSchema } from '../lib/scene/schemas';
 import { hasErrors, validateScene } from '../lib/scene/validation';
 import { EMPTY_ASSET_MANIFEST } from '../lib/assets/manifest';
@@ -83,6 +84,21 @@ app.post('/api/render/blender', async (c) => {
   });
   if (!result.ok) return c.json({ error: result.reason }, 503);
   return c.body(await readRender(result.pngPath), 200, { 'Content-Type': 'image/png', 'Cache-Control': 'no-store' });
+});
+
+// Optional CubiCasa5k extraction booster (gitignored, user-converted model + onnxruntime).
+app.get('/api/extract/cubicasa/available', async (c) => c.json({ available: await cubicasaAvailable() }));
+
+app.post('/api/extract/cubicasa', async (c) => {
+  const w = Number(c.req.query('w'));
+  const h = Number(c.req.query('h'));
+  const mmPerPx = Number(c.req.query('mmPerPx')) || 10;
+  if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return c.json({ error: 'bad dims' }, 400);
+  const rgba = new Uint8Array(await c.req.arrayBuffer());
+  if (rgba.length < w * h * 4) return c.json({ error: 'rgba payload too small' }, 400);
+  const plan = await runCubicasaSidecar(rgba, w, h, mmPerPx);
+  if (!plan) return c.json({ error: 'cubicasa unavailable' }, 503);
+  return c.json({ plan });
 });
 
 // ---------------------------------------------------------------------------

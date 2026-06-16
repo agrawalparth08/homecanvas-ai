@@ -29,6 +29,10 @@ describe('argmaxClassMap', () => {
     const logits = [0.1, 0.8, 0.2, 0.9, 0.1, 0.3]; // p0:[.1,.8,.2] -> c1, p1:[.9,.1,.3] -> c0
     expect([...argmaxClassMap(logits, 2, 1, 3, 'HWC').classMap]).toEqual([1, 0]);
   });
+  it('argmaxes a channel SLICE via channelOffset (skips leading heatmap channels)', () => {
+    // 1px, 5 channels CHW: [9, 0.1, 0.8, 0.2, 9]; take 3 classes at offset 1 -> [.1,.8,.2] -> class 1
+    expect([...argmaxClassMap([9, 0.1, 0.8, 0.2, 9], 1, 1, 3, 'CHW', 1, 5).classMap]).toEqual([1]);
+  });
 });
 
 describe('wallMaskFromSeg', () => {

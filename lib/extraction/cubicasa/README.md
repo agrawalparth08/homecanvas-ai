@@ -17,34 +17,38 @@ consumes are **user-supplied**. Before any commercial use, swap this adapter for
 permissively-licensed model — the integration point is one function
 (`runCubicasaBooster`), so the swap is cheap.
 
-## Enabling it
+## Enabling it (two one-time local steps)
 
-1. **Install the optional runtime** (kept out of the default install to avoid
-   bloat for everyone who doesn't use it):
+The wiring is already in place — the image-upload path calls the booster first and
+falls back to heuristic CV automatically (`src/lib/import-plan.ts` →
+`/api/extract/cubicasa`). You only need to provide the runtime + the model:
+
+1. **Install the optional ONNX runtime** for the sidecar (kept out of the default
+   install so non-users carry no weight — loaded via an opaque dynamic import, so
+   its absence is a graceful no-op):
 
    ```bash
-   npm install onnxruntime-web
+   npm install onnxruntime-node
    ```
 
-   It is loaded with an opaque dynamic import, so its absence is a graceful no-op
-   (`cubicasaRuntimeAvailable()` → `false`).
+2. **Download + convert the weights** (one command; heavy — installs torch, clones
+   the model code, fetches a ~200 MB checkpoint, writes a ~300 MB ONNX into the
+   GITIGNORED `asset-cache/models/`):
 
-2. **Obtain + convert the model.** Clone the CubiCasa5k repo
-   (`github.com/CubiCasa/CubiCasa5k`, CC-BY-NC), download the released PyTorch
-   weights, and export to ONNX (`torch.onnx.export`, opset 17, input
-   `1×3×512×512`). Place the result somewhere your app can read it (e.g.
-   `asset-cache/models/cubicasa5k.onnx`).
-
-3. **Wire it into the image extraction worker** alongside the heuristic path:
-
-   ```ts
-   import { runCubicasaBooster, cubicasaRuntimeAvailable } from './cubicasa/booster';
-
-   const boosted = (await cubicasaRuntimeAvailable())
-     ? await runCubicasaBooster({ model, image, wall: { mmPerPx } })
-     : null;
-   const plan = boosted ?? heuristicPlanFromImage(image, { mmPerPx }); // graceful fallback
+   ```bash
+   npm run convert:cubicasa     # = python3 scripts/convert-cubicasa.py
    ```
+
+Restart the sidecar. `GET /api/extract/cubicasa/available` now returns `true` and
+every raster import is boosted. Neither the weights nor the ONNX are committed.
+
+## How it's wired
+
+- `scripts/convert-cubicasa.py` — downloads + exports the model (CC-BY-NC, local only).
+- `server/adapters/cubicasa.ts` — detects the model, runs inference on raw RGBA.
+- `POST /api/extract/cubicasa` + `GET …/available` — the sidecar endpoints.
+- `src/lib/import-plan.ts` `tryCubicasaBoost()` — the client sends the page's RGBA
+  to the sidecar and uses the returned `PrimitivePlan`, else heuristic CV.
 
 ## ONNX I/O note
 

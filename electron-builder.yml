@@ -28,10 +28,33 @@ files:
   - "node_modules/onnxruntime-node/**/*"
   - "node_modules/onnxruntime-common/**/*"
 
+# Bundle the CC0 asset pack (furniture glTF, HDRIs, PBR textures) so the app
+# renders with real assets; main.ts copies it into app-data on first run. The
+# CC-BY-NC CubiCasa weights/clone are explicitly excluded (never redistributed).
+extraResources:
+  - from: asset-cache
+    to: seed-assets
+    filter:
+      - "**/*"
+      - "!cubicasa/**"
+      - "!models/cubicasa5k.onnx"
+
+# Notarize after signing — a clean no-op unless APPLE_* creds are in the env
+# (see build/notarize.cjs).
+afterSign: build/notarize.cjs
+
 mac:
+  icon: build/icon.icns
   target:
     - dmg
     - zip
   category: public.app-category.graphics-design
-  # Unsigned for now — set an Apple Developer identity here to sign + notarize.
-  identity: null
+  # Signing is driven by the npm scripts, not hardcoded here:
+  #   dist:mac        → CSC_IDENTITY_AUTO_DISCOVERY=false → always UNSIGNED (no cert needed)
+  #   dist:mac:signed → auto-discovers a Developer ID in your keychain + signs,
+  #                     then build/notarize.cjs notarizes if APPLE_* env is set.
+  # hardenedRuntime + entitlements are required for notarization, harmless unsigned.
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist

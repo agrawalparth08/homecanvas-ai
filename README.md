@@ -40,14 +40,27 @@ Everything is cross-platform (`node:path`, no bashisms, npm scripts only). Rende
 
 ## Desktop app (macOS)
 
-HomeCanvas also runs as a standalone, installable macOS app (Electron) — no browser, no terminal. The window loads the built SPA and the Hono sidecar runs **in-process** on a loopback port (auto-picked if 4871 is taken), so it works fully offline. App data lives under `~/Library/Application Support/HomeCanvas/` (the `.app` bundle itself is read-only).
+HomeCanvas also runs as a standalone, installable macOS app (Electron) — no browser, no terminal. The window loads the built SPA and the Hono sidecar runs **in-process** on a loopback port (auto-picked if 4871 is taken), so it works fully offline. App data lives under `~/Library/Application Support/HomeCanvas/` (the `.app` bundle is read-only); the CC0 asset pack (furniture, HDRIs, textures) ships inside the app and is seeded there on first run, so it looks good out of the box.
 
 ```bash
 npm run electron     # build + launch the desktop app locally
 npm run dist:mac     # build an installable .dmg → release/HomeCanvas-<version>-arm64.dmg
 ```
 
-Open the `.dmg`, drag **HomeCanvas** to Applications, and launch it. The build is **unsigned**, so the first launch needs **right-click → Open** (Gatekeeper). To ship a signed + notarized build, set an Apple Developer `identity` in `electron-builder.yml`. Optional features (Blender Cycles renders, the CubiCasa booster) are detected at runtime and stay optional.
+Open the `.dmg`, drag **HomeCanvas** to Applications, and launch it. The default build is **unsigned**, so the first launch needs **right-click → Open** (Gatekeeper). Optional features (Blender Cycles renders, the CubiCasa booster) are detected at runtime and stay optional.
+
+### Signed + notarized build
+
+With an Apple Developer ID (Application) certificate in your keychain:
+
+```bash
+export APPLE_ID="you@example.com"
+export APPLE_APP_SPECIFIC_PASSWORD="abcd-efgh-ijkl-mnop"   # appleid.apple.com → app-specific password
+export APPLE_TEAM_ID="XXXXXXXXXX"
+npm run dist:mac:signed
+```
+
+`dist:mac:signed` auto-discovers your Developer ID and signs with the hardened runtime (`build/entitlements.mac.plist`); the `build/notarize.cjs` afterSign hook then notarizes the `.app` (a no-op when the `APPLE_*` vars are unset). The result installs with no Gatekeeper warning.
 
 ## What you can do
 

@@ -26,7 +26,8 @@
     "bridge:pending": "tsx scripts/bridge-pending.ts",
     "electron:bundle": "node electron/build.mjs",
     "electron": "npm run build && npm run electron:bundle && electron .",
-    "dist:mac": "npm run build && npm run electron:bundle && electron-builder --mac"
+    "dist:mac": "npm run build && npm run electron:bundle && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac",
+    "dist:mac:signed": "npm run build && npm run electron:bundle && electron-builder --mac"
   },
   "dependencies": {
     "@fontsource-variable/inter": "5.2.8",
@@ -51,6 +52,7 @@
     "zustand": "5.0.14"
   },
   "devDependencies": {
+    "@electron/notarize": "^3.1.1",
     "@tailwindcss/vite": "4.3.0",
     "@types/node": "^22.15.0",
     "@types/react": "^19.1.0",

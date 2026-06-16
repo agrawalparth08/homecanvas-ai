@@ -1,0 +1,24 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="120" y1="80" x2="940" y2="980" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6D6CF6"/>
+      <stop offset="1" stop-color="#4338CA"/>
+    </linearGradient>
+    <linearGradient id="topf" x1="302" y1="270" x2="722" y2="514" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#EEF1FF"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1024" height="1024" rx="232" ry="232" fill="url(#bg)"/>
+  <g stroke="#312E81" stroke-width="8" stroke-linejoin="round" stroke-linecap="round">
+    <!-- left face -->
+    <polygon points="302,392 512,514 512,748 302,628" fill="#C2CCFB"/>
+    <!-- right face -->
+    <polygon points="512,514 722,392 722,628 512,748" fill="#9AA8F6"/>
+    <!-- top face -->
+    <polygon points="512,266 722,388 512,510 302,388" fill="url(#topf)"/>
+  </g>
+  <!-- floor-plan hint inset on the top face -->
+  <polygon points="512,318 650,398 512,478 374,398" fill="none" stroke="#6D6CF6" stroke-width="9" stroke-linejoin="round" opacity="0.7"/>
+  <line x1="512" y1="398" x2="650" y2="398" stroke="#6D6CF6" stroke-width="9" stroke-linecap="round" opacity="0.45"/>
+</svg>

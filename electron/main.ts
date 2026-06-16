@@ -11,6 +11,7 @@
 import { app, BrowserWindow, shell, dialog } from 'electron';
 import path from 'node:path';
 import net from 'node:net';
+import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 // Same app name in dev and packaged → same app-data dir
@@ -49,6 +50,34 @@ async function waitForHealth(port: number, timeoutMs = 20000): Promise<boolean> 
     await new Promise((r) => setTimeout(r, 150));
   }
   return false;
+}
+
+/**
+ * First-run seed: copy the bundled CC0 asset pack (furniture glTF, HDRIs, PBR
+ * textures) into the writable app-data asset-cache so the packaged app renders
+ * with real assets instead of procedural fallbacks. Skips if already seeded, and
+ * NEVER copies the CC-BY-NC CubiCasa weights/clone.
+ */
+function seedAssetCache(dataDir: string): void {
+  const dest = path.join(dataDir, 'asset-cache');
+  if (fs.existsSync(path.join(dest, 'manifest.json'))) return; // already seeded
+  const src = app.isPackaged
+    ? path.join(process.resourcesPath, 'seed-assets')
+    : path.join(__dirname, '..', 'asset-cache');
+  if (!fs.existsSync(src)) return;
+  try {
+    fs.cpSync(src, dest, {
+      recursive: true,
+      filter: (from) => {
+        const rel = path.relative(src, from);
+        if (rel === 'cubicasa' || rel.startsWith('cubicasa' + path.sep)) return false;
+        if (rel === path.join('models', 'cubicasa5k.onnx')) return false;
+        return true;
+      },
+    });
+  } catch {
+    // Non-fatal: the app still runs with procedural/flat fallbacks.
+  }
 }
 
 function createWindow(port: number): void {
@@ -101,8 +130,10 @@ app.whenReady().then(async () => {
   activePort = await getFreePort(4871);
 
   // Hand the sidecar its runtime config, then start it in this process.
+  const dataDir = app.getPath('userData');
+  seedAssetCache(dataDir); // first-run only: populate CC0 assets before the sidecar serves them
   process.env.HOMECANVAS_PORT = String(activePort);
-  process.env.HOMECANVAS_DATA_DIR = app.getPath('userData');
+  process.env.HOMECANVAS_DATA_DIR = dataDir;
   process.env.HOMECANVAS_STATIC_DIR = path.join(__dirname, '..', 'dist');
   process.env.HOMECANVAS_BLENDER_SCRIPT = path.join(__dirname, '..', 'scripts', 'render-blender.py');
   await import(pathToFileURL(path.join(__dirname, 'sidecar.cjs')).href);

@@ -13,9 +13,12 @@ import { bufferDataToGeometry, boundaryToFloorGeometry } from './geometry-helper
 import { GltfErrorBoundary, GltfFurniture } from './GltfFurniture';
 import { pick, TRIM_MATERIAL } from './materials';
 import { ProceduralFurniture } from './ProceduralFurniture';
+import { InstancedFurniture } from './InstancedFurniture';
+import { partitionForInstancing } from '@lib/render/instancing';
 
 const MM = 0.001;
 const SELECT_COLOR = '#d8a25a';
+const INSTANCE_MIN = 4; // batch identical procedural pieces only when it saves enough draw calls
 
 interface FloorContentProps {
   floor: Floor;
@@ -167,48 +170,74 @@ function FurnitureMeshes({
   // present (tracing/verify 3D preview) selection is local, so we keep furniture
   // static there rather than committing transform patches to the main store.
   const override = useContext(PickProvider);
+  const selection = useEditor((s) => s.selection);
+  const selectedId = override ? override.selectedId : (selection?.id ?? null);
   const { data: assets } = useQuery({ queryKey: ['asset-manifest'], queryFn: fetchAssetManifest, staleTime: Infinity });
-  const models = assets?.models ?? {};
+  const models = useMemo(() => assets?.models ?? {}, [assets]);
+
+  // Batch identical PROCEDURAL pieces into InstancedMeshes; render everything else
+  // individually. The selected/dragged piece, glTF-backed pieces, and the tracing
+  // preview (override) ALWAYS render individually, so selection / drag / glTF /
+  // local-pick are never touched by instancing.
+  const { batches, individual } = useMemo(
+    () =>
+      partitionForInstancing(floor.objects, {
+        isGltf: (o) => !!(o.assetRef && models[o.assetRef]),
+        selectedId,
+        preview: !!override,
+        min: INSTANCE_MIN,
+      }),
+    [floor.objects, models, override, selectedId],
+  );
+
+  const renderOne = (obj: FurnitureObject) => {
+    const selected = isSelected(obj.id);
+    const procedural = <ProceduralFurniture object={obj} materials={materials} selected={selected} />;
+    const model = obj.assetRef ? models[obj.assetRef] : undefined;
+    const visual = model ? (
+      // CC0 glTF if it's in the cache; both Suspense (loading) and the
+      // error boundary (parse/network failure) fall back to procedural.
+      <GltfErrorBoundary fallback={procedural}>
+        <Suspense fallback={procedural}>
+          <GltfFurniture url={assetUrl(model.file)} object={obj} />
+        </Suspense>
+      </GltfErrorBoundary>
+    ) : (
+      procedural
+    );
+    // The selected piece becomes click-drag movable: DraggableFurniture applies
+    // its own position/rotation and commits ONE transform_object patch on release.
+    if (selected && !override) {
+      return (
+        <DraggableFurniture key={obj.id} object={obj} floor={floor} floorElevation={elevation}>
+          {visual}
+        </DraggableFurniture>
+      );
+    }
+    return (
+      <group
+        key={obj.id}
+        position={[obj.transform.x * MM, obj.transform.elevation * MM, -obj.transform.y * MM]}
+        rotation={[0, obj.transform.rotationY, 0]}
+        onClick={onSelect({ type: 'furniture', id: obj.id })}
+      >
+        {visual}
+      </group>
+    );
+  };
+
   return (
     <>
-      {floor.objects.map((obj: FurnitureObject) => {
-        const selected = isSelected(obj.id);
-        const procedural = <ProceduralFurniture object={obj} materials={materials} selected={selected} />;
-        const model = obj.assetRef ? models[obj.assetRef] : undefined;
-        const visual = model ? (
-          // CC0 glTF if it's in the cache; both Suspense (loading) and the
-          // error boundary (parse/network failure) fall back to procedural.
-          <GltfErrorBoundary fallback={procedural}>
-            <Suspense fallback={procedural}>
-              <GltfFurniture url={assetUrl(model.file)} object={obj} />
-            </Suspense>
-          </GltfErrorBoundary>
-        ) : (
-          procedural
-        );
-
-        // The selected piece becomes click-drag movable: DraggableFurniture
-        // applies its own position/rotation and commits ONE transform_object
-        // patch on release. Unselected pieces stay static; their onClick selects
-        // them, promoting them into the draggable branch on the next render.
-        if (selected && !override) {
-          return (
-            <DraggableFurniture key={obj.id} object={obj} floor={floor} floorElevation={elevation}>
-              {visual}
-            </DraggableFurniture>
-          );
-        }
-        return (
-          <group
-            key={obj.id}
-            position={[obj.transform.x * MM, obj.transform.elevation * MM, -obj.transform.y * MM]}
-            rotation={[0, obj.transform.rotationY, 0]}
-            onClick={onSelect({ type: 'furniture', id: obj.id })}
-          >
-            {visual}
-          </group>
-        );
-      })}
+      {batches.map((b) => (
+        <InstancedFurniture
+          key={b.key}
+          rep={b.rep}
+          instances={b.instances}
+          materials={materials}
+          onPick={(id, e) => onSelect({ type: 'furniture', id })(e)}
+        />
+      ))}
+      {individual.map(renderOne)}
     </>
   );
 }

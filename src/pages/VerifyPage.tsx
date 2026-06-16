@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { commit } from '@lib/scene/commit';
+import { applyRemap } from '@lib/scene/reconcile';
 import { makePatch, type ScenePatch } from '@lib/scene/patching';
 import { SCHEMA_VERSION, type DesignVariant, type Floor, type HomeScene, type Opening } from '@lib/scene/schemas';
 import { checkSceneScale, type ScaleCheck } from '@lib/extraction/scene-plausibility';
@@ -28,6 +29,7 @@ import { ScenePreview3D } from '../components/canvas/ScenePreview3D';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { StairControls } from '../components/inspector/StairControls';
 import { RoomNameEditor } from '../components/inspector/RoomNameEditor';
+import { ReconcilePanel } from '../components/reconcile/ReconcilePanel';
 import { Icon } from '../components/ui/Icon';
 import { fetchPrivateManifest, fetchScene, fetchVariant, fetchVariants, privateFileUrl, saveManualScene, saveRasterizedPage, saveVariantRemote } from '../api';
 import { loadRasterImage, rasterizePdf } from '../lib/pdf';
@@ -141,6 +143,8 @@ export function VerifyPage() {
   const [show3D, setShow3D] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // Set when finishing a fresh extraction over an existing home — drives the diff/merge dialog.
+  const [reconcileCandidate, setReconcileCandidate] = useState<{ existing: HomeScene; fresh: HomeScene } | null>(null);
   // Set when a fresh no-CAD import looks implausibly scaled (drives the banner +
   // the rescale prompt in the Scale step); cleared once the user rescales.
   const [scaleWarning, setScaleWarning] = useState<ScaleCheck | null>(null);
@@ -414,14 +418,47 @@ export function VerifyPage() {
     if (id) removeEntity(id);
   }
 
+  async function commitFinish(s: HomeScene) {
+    setBusy('Saving…');
+    const ok = await saveManualScene(s);
+    if (!ok) reportError("Couldn't save your trace before opening 3D — is the local server running?", { kind: 'network' });
+    loadSceneObject('my-home', s);
+    setBusy(null);
+    setReconcileCandidate(null);
+    navigate('/design/my-home');
+  }
+
   async function finish() {
     if (!scene) return;
-    setBusy('Saving…');
-    const ok = await saveManualScene(scene);
-    if (!ok) reportError("Couldn't save your trace before opening 3D — is the local server running?", { kind: 'network' });
-    loadSceneObject('my-home', scene);
-    setBusy(null);
-    navigate('/design/my-home');
+    // Re-extraction merge: if a prior home exists AND this is a FRESH extraction
+    // (entirely new room ids, not an edit of the same scene), offer to merge so the
+    // user's materials/furniture/locks survive — rather than blindly replacing.
+    const existing = await fetchScene('my-home');
+    const existingRoomIds = new Set((existing?.floors ?? []).flatMap((f) => f.rooms.map((r) => r.id)));
+    const isFreshExtraction =
+      existingRoomIds.size > 0 && !scene.floors.flatMap((f) => f.rooms).some((r) => existingRoomIds.has(r.id));
+    if (existing && isFreshExtraction) {
+      setReconcileCandidate({ existing, fresh: scene });
+      return;
+    }
+    await commitFinish(scene);
+  }
+
+  /** Merge the fresh extraction onto the existing home, preserving matched edits. */
+  function mergeReconcile() {
+    const c = reconcileCandidate;
+    if (!c) return;
+    const app = applyRemap(c.existing, c.fresh);
+    if (!app.patch) {
+      void commitFinish(c.existing); // nothing safe to migrate — keep the existing home
+      return;
+    }
+    const r = commit(c.existing, app.patch);
+    if (!r.ok) {
+      reportError('Merge was rejected (a matched room may be locked). Try Replace, or unlock it first.', { kind: 'runtime' });
+      return;
+    }
+    void commitFinish(r.scene);
   }
 
   /** Persist the working scene so a reload keeps your edits (no version named). */
@@ -576,6 +613,16 @@ export function VerifyPage() {
         onConfirm={confirmPendingDelete}
         onCancel={() => setPendingDeleteId(null)}
       />
+
+      {reconcileCandidate && (
+        <ReconcilePanel
+          existing={reconcileCandidate.existing}
+          fresh={reconcileCandidate.fresh}
+          onMerge={mergeReconcile}
+          onReplace={() => void commitFinish(reconcileCandidate.fresh)}
+          onCancel={() => setReconcileCandidate(null)}
+        />
+      )}
 
       <div className="flex min-h-0 flex-1">
         {wstate.step === 'pickFile' ? (

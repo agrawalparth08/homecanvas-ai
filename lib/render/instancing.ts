@@ -100,3 +100,69 @@ export function buildInstanceBatches(objects: FurnitureObject[]): InstancePlan {
 
   return { batches, instanceToEntity };
 }
+
+/** A renderable instanced batch: a representative object (geometry + materials) + per-instance transforms. */
+export interface InstancedRenderBatch {
+  key: string;
+  rep: FurnitureObject;
+  instances: InstanceXform[];
+}
+
+export interface FurniturePartition {
+  /** Groups of ≥`min` identical procedural pieces to draw as InstancedMeshes. */
+  batches: InstancedRenderBatch[];
+  /** Everything else — drawn as individual meshes (selected/glTF/preview/too-few). */
+  individual: FurnitureObject[];
+}
+
+export interface PartitionOpts {
+  /** Pieces backed by a cached glTF model — never instanced (their own meshes). */
+  isGltf?: (obj: FurnitureObject) => boolean;
+  /** The selected entity id — always individual, so selection + drag are untouched. */
+  selectedId?: string | null;
+  /** Tracing-preview (override) active — instance nothing (local-pick path). */
+  preview?: boolean;
+  /** Minimum identical pieces before instancing pays off (default 4). */
+  min?: number;
+}
+
+const toXform = (o: FurnitureObject): InstanceXform => ({
+  x: o.transform.x,
+  y: o.transform.y,
+  elevation: o.transform.elevation,
+  rotationY: o.transform.rotationY,
+  entityId: o.id,
+});
+
+/**
+ * Partition furniture into instanced batches + individuals for the renderer.
+ * Pure + deterministic (input-order stable). A batch needs the SAME procedural
+ * kind, rounded dimensions AND materials (different materials never share a mesh).
+ * The selected piece, glTF-backed pieces and the tracing preview are forced
+ * individual so selection, drag, glTF and local-pick are never affected.
+ */
+export function partitionForInstancing(objects: FurnitureObject[], opts: PartitionOpts = {}): FurniturePartition {
+  const { isGltf = () => false, selectedId = null, preview = false, min = 4 } = opts;
+  const individual: FurnitureObject[] = [];
+  const groups = new Map<string, FurnitureObject[]>();
+
+  for (const obj of objects) {
+    if (preview || obj.id === selectedId || isGltf(obj)) {
+      individual.push(obj);
+      continue;
+    }
+    const kind = obj.procedural?.kind ?? obj.category;
+    const d = obj.dimensions;
+    const key = `${kind}|${roundMm(d.w)}x${roundMm(d.d)}x${roundMm(d.h)}|${obj.materialIds.join(',')}`;
+    const g = groups.get(key);
+    if (g) g.push(obj);
+    else groups.set(key, [obj]);
+  }
+
+  const batches: InstancedRenderBatch[] = [];
+  for (const [key, objs] of groups) {
+    if (objs.length >= min) batches.push({ key, rep: objs[0]!, instances: objs.map(toXform) });
+    else individual.push(...objs);
+  }
+  return { batches, individual };
+}

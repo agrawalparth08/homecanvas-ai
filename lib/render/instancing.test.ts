@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { FurnitureObject } from '../scene/schemas';
-import { buildInstanceBatches } from './instancing';
+import { buildInstanceBatches, partitionForInstancing } from './instancing';
 
 /** Minimal valid FurnitureObject; overrides patch the fields a case cares about. */
 function makeObj(over: Partial<FurnitureObject> & { id: string }): FurnitureObject {
@@ -105,5 +105,55 @@ describe('buildInstanceBatches', () => {
     expect('assetRef' in batch).toBe(false); // truly omitted, not set to undefined
     expect(batch.w).toBe(1000);
     expect(plan.instanceToEntity[batch.key]).toEqual(['p1', 'p2']);
+  });
+});
+
+describe('partitionForInstancing', () => {
+  const plant = (id: string, x: number, materialIds: string[] = []) =>
+    makeObj({
+      id,
+      category: 'plant',
+      procedural: { kind: 'plant' },
+      dimensions: { w: 500, d: 500, h: 1400 },
+      transform: { x, y: 0, elevation: 0, rotationY: 0 },
+      materialIds,
+    });
+
+  it('batches 4+ identical procedural pieces, in input order, with entity ids for picking', () => {
+    const objs = [plant('p1', 1000), plant('p2', 2000), plant('p3', 3000), plant('p4', 4000)];
+    const { batches, individual } = partitionForInstancing(objs);
+    expect(batches).toHaveLength(1);
+    expect(batches[0]!.instances.map((i) => i.entityId)).toEqual(['p1', 'p2', 'p3', 'p4']);
+    expect(batches[0]!.instances[0]).toMatchObject({ x: 1000, entityId: 'p1' });
+    expect(batches[0]!.instances[3]).toMatchObject({ x: 4000, entityId: 'p4' });
+    expect(batches[0]!.rep.id).toBe('p1');
+    expect(individual).toEqual([]);
+  });
+
+  it('does not batch fewer than `min` identical pieces', () => {
+    const { batches, individual } = partitionForInstancing([plant('p1', 0), plant('p2', 1), plant('p3', 2)]);
+    expect(batches).toHaveLength(0);
+    expect(individual).toHaveLength(3);
+  });
+
+  it('keeps the SELECTED piece individual (so its batch drops below min and selection/drag work)', () => {
+    const objs = [plant('p1', 0), plant('p2', 1), plant('p3', 2), plant('p4', 3)];
+    const { batches, individual } = partitionForInstancing(objs, { selectedId: 'p2' });
+    expect(batches).toHaveLength(0); // 3 remain < min(4)
+    expect(individual.map((o) => o.id).sort()).toEqual(['p1', 'p2', 'p3', 'p4']);
+  });
+
+  it('forces glTF-backed and tracing-preview pieces individual', () => {
+    const objs = [plant('p1', 0), plant('p2', 1), plant('p3', 2), plant('p4', 3)];
+    expect(partitionForInstancing(objs, { preview: true }).batches).toHaveLength(0);
+    expect(partitionForInstancing(objs, { isGltf: (o) => o.id === 'p1' }).batches).toHaveLength(0); // 3 left
+  });
+
+  it('never shares a batch across different materials', () => {
+    const objs = [plant('p1', 0, ['mat-a']), plant('p2', 1, ['mat-a']), plant('p3', 2, ['mat-b']), plant('p4', 3, ['mat-b'])];
+    const { batches } = partitionForInstancing(objs, { min: 2 });
+    expect(batches).toHaveLength(2);
+    expect(batches[0]!.instances).toHaveLength(2);
+    expect(batches[1]!.instances).toHaveLength(2);
   });
 });

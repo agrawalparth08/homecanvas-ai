@@ -12,7 +12,7 @@ import { pick } from './materials';
 
 const MM = 0.001;
 
-interface Piece {
+export interface Piece {
   kind: 'box' | 'cylinder';
   /** center position in local meters */
   pos: [number, number, number];
@@ -24,7 +24,19 @@ interface Piece {
 const DARK = new THREE.MeshStandardMaterial({ color: '#26241f', roughness: 0.6 });
 const FOLIAGE = new THREE.MeshStandardMaterial({ color: '#3f6b3f', roughness: 0.9 });
 
-function pieces(obj: FurnitureObject): Piece[] {
+/** Resolve a piece's material slot to a THREE material (shared by the instanced renderer). */
+export function proceduralMaterial(
+  idx: number,
+  obj: FurnitureObject,
+  materials: Map<string, THREE.MeshStandardMaterial>,
+): THREE.Material {
+  if (idx === -1) return DARK;
+  if (idx === -2) return FOLIAGE;
+  return pick(materials, obj.materialIds[idx] ?? obj.materialIds[0]);
+}
+
+/** Decompose a furniture object into parametric box/cylinder pieces (local meters). */
+export function proceduralPieces(obj: FurnitureObject): Piece[] {
   const w = obj.dimensions.w * MM;
   const d = obj.dimensions.d * MM;
   const h = obj.dimensions.h * MM;
@@ -104,17 +116,12 @@ export function ProceduralFurniture({
   materials: Map<string, THREE.MeshStandardMaterial>;
   selected: boolean;
 }) {
-  const parts = useMemo(() => pieces(object), [object]);
-  const materialFor = (idx: number): THREE.Material => {
-    if (idx === -1) return DARK;
-    if (idx === -2) return FOLIAGE;
-    return pick(materials, object.materialIds[idx] ?? object.materialIds[0]);
-  };
+  const parts = useMemo(() => proceduralPieces(object), [object]);
 
   return (
     <>
       {parts.map((piece, i) => (
-        <mesh key={i} position={piece.pos} material={materialFor(piece.mat)} castShadow receiveShadow>
+        <mesh key={i} position={piece.pos} material={proceduralMaterial(piece.mat, object, materials)} castShadow receiveShadow>
           {piece.kind === 'box' ? (
             <boxGeometry args={piece.size} />
           ) : (

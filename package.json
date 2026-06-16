@@ -2,7 +2,10 @@
   "name": "homecanvas-ai",
   "private": true,
   "version": "0.1.0",
+  "description": "Local-first floor plan to interactive, near-photoreal 3D home designer.",
+  "author": "Parth Agrawal",
   "type": "module",
+  "main": "dist-electron/main.cjs",
   "engines": {
     "node": ">=22.13.0"
   },
@@ -20,7 +23,10 @@
     "detect:private": "tsx scripts/detect-private-home-files.ts",
     "fetch:assets": "tsx scripts/fetch-assets.ts",
     "convert:cubicasa": "python3 scripts/convert-cubicasa.py",
-    "bridge:pending": "tsx scripts/bridge-pending.ts"
+    "bridge:pending": "tsx scripts/bridge-pending.ts",
+    "electron:bundle": "node electron/build.mjs",
+    "electron": "npm run build && npm run electron:bundle && electron .",
+    "dist:mac": "npm run build && npm run electron:bundle && electron-builder --mac"
   },
   "dependencies": {
     "@fontsource-variable/inter": "5.2.8",
@@ -53,6 +59,9 @@
     "@vitejs/plugin-react": "6.0.2",
     "@vitest/coverage-v8": "4.1.8",
     "concurrently": "10.0.3",
+    "electron": "^42.4.0",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.28.1",
     "eslint": "^9.28.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "tailwindcss": "4.3.0",

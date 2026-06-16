@@ -17,10 +17,14 @@ import {
  * All writes are atomic (temp + rename) so a crash never half-writes a scene.
  */
 
-export const REPO_ROOT = path.resolve(import.meta.dirname, '..');
-export const APP_DATA = path.join(REPO_ROOT, '.homecanvas');
-export const PRIVATE_ROOT = path.join(REPO_ROOT, 'private-home-inputs');
-export const ASSET_CACHE = path.join(REPO_ROOT, 'asset-cache');
+// In dev, data lives under the repo. The packaged Electron app sets
+// HOMECANVAS_DATA_DIR to a writable app-data dir (the .app bundle is read-only),
+// keeping the same on-disk layout (.homecanvas / private-home-inputs / asset-cache).
+const DATA_ROOT = process.env.HOMECANVAS_DATA_DIR ?? path.resolve(import.meta.dirname, '..');
+export const REPO_ROOT = DATA_ROOT;
+export const APP_DATA = path.join(DATA_ROOT, '.homecanvas');
+export const PRIVATE_ROOT = path.join(DATA_ROOT, 'private-home-inputs');
+export const ASSET_CACHE = path.join(DATA_ROOT, 'asset-cache');
 
 export type ProjectId = 'sample-home' | 'my-home';
 

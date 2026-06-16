@@ -19,6 +19,9 @@
 
 node_modules/
 dist/
+# Electron build outputs (esbuild bundles + electron-builder installers)
+dist-electron/
+release/
 coverage/
 *.local
 .env

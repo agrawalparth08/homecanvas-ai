@@ -1,0 +1,37 @@
+appId: com.homecanvas.app
+productName: HomeCanvas
+copyright: HomeCanvas
+
+directories:
+  output: release
+  buildResources: build
+
+# asar disabled: the sidecar resolves onnxruntime-node's native .node binary from
+# node_modules at runtime; plain files avoid asar-unpacking gymnastics. Personal
+# app — size/startup cost is negligible.
+asar: false
+
+# Native prebuilt binary (onnxruntime-node) ships as-is; don't rebuild against
+# Electron headers (no source build available — and the booster degrades to null
+# gracefully if the ABI mismatches).
+npmRebuild: false
+
+# Lean payload: the SPA libs (react/three/...) are already inlined into dist/ by
+# Vite and into dist-electron/sidecar.cjs by esbuild, so we ship none of their
+# node_modules — only the runtime-resolved onnxruntime-node.
+files:
+  - "!**/*"
+  - "package.json"
+  - "dist/**/*"
+  - "dist-electron/**/*"
+  - "scripts/render-blender.py"
+  - "node_modules/onnxruntime-node/**/*"
+  - "node_modules/onnxruntime-common/**/*"
+
+mac:
+  target:
+    - dmg
+    - zip
+  category: public.app-category.graphics-design
+  # Unsigned for now — set an Apple Developer identity here to sign + notarize.
+  identity: null

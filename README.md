@@ -38,6 +38,17 @@ npm run build     # production bundle
 
 Everything is cross-platform (`node:path`, no bashisms, npm scripts only). Rendering auto-degrades on weaker GPUs (e.g. a GTX 1060). WebGL2 is required for the 3D canvas and the path-traced Photo Mode.
 
+## Desktop app (macOS)
+
+HomeCanvas also runs as a standalone, installable macOS app (Electron) — no browser, no terminal. The window loads the built SPA and the Hono sidecar runs **in-process** on a loopback port (auto-picked if 4871 is taken), so it works fully offline. App data lives under `~/Library/Application Support/HomeCanvas/` (the `.app` bundle itself is read-only).
+
+```bash
+npm run electron     # build + launch the desktop app locally
+npm run dist:mac     # build an installable .dmg → release/HomeCanvas-<version>-arm64.dmg
+```
+
+Open the `.dmg`, drag **HomeCanvas** to Applications, and launch it. The build is **unsigned**, so the first launch needs **right-click → Open** (Gatekeeper). To ship a signed + notarized build, set an Apple Developer `identity` in `electron-builder.yml`. Optional features (Blender Cycles renders, the CubiCasa booster) are detected at runtime and stay optional.
+
 ## What you can do
 
 - **Interactive 3D canvas** (archviz-lite): AgX tone mapping, HDRI image-based lighting, N8AO ambient occlusion, PCF soft shadows, SMAA + bloom. Orbit / top / first-person **walk** / guided **tour** views.

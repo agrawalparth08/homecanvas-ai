@@ -1,5 +1,5 @@
 import { serve } from '@hono/node-server';
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Hono } from 'hono';
@@ -36,10 +36,14 @@ import {
  * a localhost API that reads/writes private files (CSRF/DNS-rebinding).
  */
 
-const PORT = 4871;
+const PORT = Number(process.env.HOMECANVAS_PORT) || 4871;
 const ALLOWED_ORIGINS = new Set([
   'http://localhost:5173',
   'http://127.0.0.1:5173',
+  // Packaged Electron app: the window is served by this sidecar, so same-origin
+  // POSTs carry this Origin (GETs carry none). Derived from PORT so it matches.
+  `http://127.0.0.1:${PORT}`,
+  `http://localhost:${PORT}`,
 ]);
 // DNS-rebinding defense: after a rebind the browser still sends the attacker's
 // hostname in Host, so a strict Host allow-list rejects it even on a no-Origin
@@ -344,6 +348,49 @@ app.get('/api/assets/file/*', async (c) => {
   const type = ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : ext === '.png' ? 'image/png' : 'application/octet-stream';
   return c.body(new Uint8Array(data), 200, { 'Content-Type': type, 'Cache-Control': 'max-age=3600' });
 });
+
+// Packaged app: serve the built SPA from this same origin (single origin → no
+// CORS; the Host/Origin gate above still applies). Registered AFTER every /api
+// route so those match first. Dev leaves HOMECANVAS_STATIC_DIR unset (Vite serves
+// the SPA), making this a no-op.
+const STATIC_DIR = process.env.HOMECANVAS_STATIC_DIR;
+if (STATIC_DIR) {
+  const MIME: Record<string, string> = {
+    '.html': 'text/html; charset=utf-8',
+    '.js': 'text/javascript',
+    '.mjs': 'text/javascript',
+    '.css': 'text/css',
+    '.json': 'application/json',
+    '.svg': 'image/svg+xml',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.webp': 'image/webp',
+    '.gif': 'image/gif',
+    '.ico': 'image/x-icon',
+    '.woff2': 'font/woff2',
+    '.woff': 'font/woff',
+    '.ttf': 'font/ttf',
+    '.wasm': 'application/wasm',
+    '.glb': 'model/gltf-binary',
+    '.gltf': 'model/gltf+json',
+    '.hdr': 'image/vnd.radiance',
+    '.map': 'application/json',
+  };
+  app.get('/*', async (c) => {
+    if (c.req.path.startsWith('/api')) return c.notFound();
+    const rel = decodeURIComponent(c.req.path).replace(/^\/+/, '');
+    const candidate = path.resolve(STATIC_DIR, rel);
+    const inside = candidate === STATIC_DIR || candidate.startsWith(STATIC_DIR + path.sep);
+    const isFile = inside && existsSync(candidate) && statSync(candidate).isFile();
+    // Real file → serve it; anything else → index.html (SPA client-side routing).
+    const file = isFile ? candidate : path.join(STATIC_DIR, 'index.html');
+    const data = await readFile(file);
+    const type = MIME[path.extname(file).toLowerCase()] ?? 'application/octet-stream';
+    const cache = isFile && rel.startsWith('assets/') ? 'public, max-age=31536000, immutable' : 'no-cache';
+    return c.body(new Uint8Array(data), 200, { 'Content-Type': type, 'Cache-Control': cache });
+  });
+}
 
 // Defense in depth: a single bridge/subprocess failure must never take down the
 // whole local backend.

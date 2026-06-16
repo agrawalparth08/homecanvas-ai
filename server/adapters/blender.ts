@@ -56,7 +56,11 @@ export interface BlenderRenderOpts {
 
 export type BlenderRenderResult = { ok: true; pngPath: string } | { ok: false; reason: string };
 
-const RENDER_SCRIPT = path.resolve(import.meta.dirname, '..', '..', 'scripts', 'render-blender.py');
+// Env override lets the packaged Electron app point at the bundled script (and
+// keeps the import.meta.dirname branch — empty in a CJS bundle — from running).
+const RENDER_SCRIPT =
+  process.env.HOMECANVAS_BLENDER_SCRIPT ??
+  path.resolve(import.meta.dirname, '..', '..', 'scripts', 'render-blender.py');
 
 /** Render a HomeScene to a PNG via headless Blender Cycles. Returns the file path. */
 export async function renderWithBlender(scene: unknown, opts: BlenderRenderOpts = {}): Promise<BlenderRenderResult> {

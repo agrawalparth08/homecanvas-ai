@@ -200,10 +200,17 @@ app.post('/api/private-home/build-scene', async (c) => {
     }
     const parsed = HomeSceneSchema.safeParse(scene);
     if (!parsed.success) return c.json({ ok: false, reason: 'built scene failed schema validation', detail: parsed.error.message }, 422);
-    const issues = validateScene(parsed.data);
-    if (hasErrors(issues)) return c.json({ ok: false, reason: 'built scene has geometry errors', issues: issues.filter((i) => i.severity === 'error') }, 422);
+    // Geometry errors are EXPECTED from messy raster extraction. Don't dead-end:
+    // return the imperfect scene + the flagged issues so the verify wizard can open
+    // it for correction (its whole purpose) instead of throwing the extraction away.
+    const issues = validateScene(parsed.data).filter((i) => i.severity === 'error');
     const floor = parsed.data.floors[0]!;
-    return c.json({ ok: true, scene: parsed.data, summary: { rooms: floor.rooms.length, walls: floor.walls.length, openings: floor.openings.length } });
+    return c.json({
+      ok: true,
+      scene: parsed.data,
+      summary: { rooms: floor.rooms.length, walls: floor.walls.length, openings: floor.openings.length },
+      issues,
+    });
   } catch (e) {
     return c.json({ ok: false, reason: (e as Error).message });
   }

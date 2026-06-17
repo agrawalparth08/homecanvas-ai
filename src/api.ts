@@ -116,10 +116,18 @@ export async function autoTracePrivate(filePath: string): Promise<{ ok: boolean;
   }
 }
 
+export interface SceneIssue {
+  severity: string;
+  message: string;
+  entityId?: string;
+}
+
 export interface BuildSceneResult {
   ok: boolean;
   scene?: HomeScene;
   summary?: { rooms: number; walls: number; openings: number };
+  /** Geometry errors found in the auto-built scene — fixable in the verify wizard. */
+  issues?: SceneIssue[];
   reason?: string;
 }
 

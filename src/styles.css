@@ -1,19 +1,41 @@
 @import 'tailwindcss';
 
 /*
- * Sarvam-inspired theme: clean cool-light chrome, near-black text, a vivid
- * indigo accent, and a premium dark 3D stage. The neutral ramp is INVERTED +
- * cool-tinted so existing utility usage flips correctly app-wide:
- *   text-neutral-100  → near-black (primary text)
- *   text-neutral-400/500 → cool grey (muted)
- *   bg-neutral-800/900 → soft cool-grey surfaces
+ * HomeCanvas design system (from the Claude Design handoff). A clean cool-light
+ * chrome, indigo accent, a dark pro-CAD 3D stage, and JetBrains Mono for every
+ * measurement. Colors are SEMANTIC (text-ink / text-dim / text-faint / border-line
+ * / bg-stage / text-ok / text-warn / bg-wash …) — prefer these.
+ *
+ * The older INVERTED neutral ramp is kept below for backward compatibility
+ * (text-neutral-100 → near-black, bg-neutral-900 → light surface). New work should
+ * use the semantic tokens, not the ramp.
  */
 @theme {
-  --color-canvas-bg: #edeef2;   /* app backdrop (cool light) */
-  --color-panel: #ffffff;       /* panels / chrome */
-  --color-panel-border: #e4e6ec;
-  --color-accent: #4b46e5;      /* indigo */
+  /* --- semantic palette --- */
+  --color-accent: #4b46e5;     /* indigo — primary action / active toggle */
+  --color-accent-2: #6f6af0;   /* lighter indigo — hover / gradient */
+  --color-wash: #eeedfd;       /* indigo tint — active nav rows, chips */
+  --color-wash-line: #d8d6f7;  /* indigo tint border */
+  --color-ink: #1b1d24;        /* primary text + dark "Export" button */
+  --color-dim: #646b78;        /* secondary text */
+  --color-faint: #9aa0ac;      /* tertiary text / uppercase labels / placeholders */
+  --color-line: #e6e8ee;       /* hairline borders */
+  --color-stage: #0e0f15;      /* dark 3D viewport */
+  --color-stage-2: #0a0b10;    /* darker photo-render backdrop */
+  --color-ok: #2f9e6b;         /* success / "fits" / budget tier */
+  --color-warn: #d98a3d;       /* warning / snap / converging */
+  --color-app: #f6f7f9;        /* app body backdrop */
+  --color-sidebar: #fbfbfd;    /* left sidebars */
+  --color-soft: #f1f2f6;       /* soft chip fill */
+  --color-soft-2: #f3f4f7;     /* softer fill */
+  --color-track: #eef0f4;      /* segmented-control + slider track */
+  --color-field: #fafbfc;      /* input field bg */
 
+  --color-canvas-bg: #edeef2;  /* legacy app backdrop */
+  --color-panel: #ffffff;
+  --color-panel-border: #e4e6ec;
+
+  /* --- inverted neutral ramp (LEGACY compat — see note above) --- */
   --color-neutral-50: #131418;
   --color-neutral-100: #1b1d24;  /* primary text (near-black navy) */
   --color-neutral-200: #2a2d37;
@@ -26,16 +48,17 @@
   --color-neutral-900: #f3f4f7;  /* lighter surface */
   --color-neutral-950: #f8f9fb;
 
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace;
+
   /*
-   * Softer, navy-tinted elevation. Tailwind's default black shadows read
-   * generic; these are cooler, tighter, and layered so cards feel lifted, not
-   * "drop-shadowed". Used app-wide via shadow-sm/md/lg/xl/2xl.
+   * Navy-tinted, layered elevation matching the handoff. Tighter and cooler than
+   * Tailwind defaults so cards feel lifted, not "drop-shadowed".
    */
-  --shadow-sm: 0 1px 2px rgba(27, 29, 36, 0.06);
-  --shadow-md: 0 4px 12px -2px rgba(27, 29, 36, 0.10);
-  --shadow-lg: 0 10px 30px -6px rgba(27, 29, 36, 0.12);
-  --shadow-xl: 0 18px 50px -10px rgba(27, 29, 36, 0.16);
-  --shadow-2xl: 0 30px 80px -16px rgba(27, 29, 36, 0.22);
+  --shadow-sm: 0 2px 6px -2px rgba(20, 22, 40, 0.18);
+  --shadow-md: 0 10px 30px -18px rgba(20, 22, 40, 0.40);
+  --shadow-lg: 0 12px 30px -20px rgba(20, 22, 40, 0.42);
+  --shadow-xl: 0 22px 60px -22px rgba(20, 22, 40, 0.30);
+  --shadow-2xl: 0 40px 90px -35px rgba(20, 22, 40, 0.55);
 
   --radius-lg: 0.625rem;
   --radius-xl: 0.875rem;
@@ -50,16 +73,28 @@ body,
 
 body {
   font-family: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  background: var(--color-canvas-bg);
-  color: var(--color-neutral-100);
+  background: var(--color-app);
+  color: var(--color-ink);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
+/* The "live" / "converging" status dot. */
+@keyframes hc-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+.hc-live-dot { animation: hc-blink 2s ease-in-out infinite; }
+.hc-pulse-dot { animation: hc-blink 1.2s ease-in-out infinite; }
+
+/* Signature elevations from the design. */
+.hc-window { box-shadow: 0 40px 90px -35px rgba(20, 22, 40, 0.55), 0 0 0 1px rgba(20, 22, 40, 0.05); }
+.hc-card { box-shadow: 0 12px 30px -20px rgba(20, 22, 40, 0.40); }
+.hc-glow { box-shadow: 0 10px 22px -10px rgba(75, 70, 229, 0.60); }
+
 /*
- * Sarvam-style soft gradient accents. Pale, low-saturation washes layered over
- * a white panel — used on the home hero, empty states, and CTA surfaces. Pure
- * decoration; never the only signal for state.
+ * Sarvam-style soft gradient accents — pale washes over a white panel, used on
+ * the home hero / empty states. Pure decoration; never the only state signal.
  */
 .hc-hero {
   background:
@@ -67,15 +102,8 @@ body {
     radial-gradient(130% 150% at 100% 100%, #eef2ec 0%, transparent 46%),
     var(--color-panel);
 }
-/* A restrained single-hue indigo edge that lifts on hover — no rainbow. */
-.hc-card-glow {
-  position: relative;
-  isolation: isolate;
-  transition: box-shadow 0.2s ease, transform 0.2s ease;
-}
-.hc-card-glow:hover {
-  box-shadow: 0 14px 40px -14px rgba(75, 70, 229, 0.28);
-}
+.hc-card-glow { transition: box-shadow 0.2s ease, transform 0.2s ease; }
+.hc-card-glow:hover { box-shadow: 0 14px 40px -14px rgba(75, 70, 229, 0.28); }
 
 /* Refined, unobtrusive scrollbars. */
 * {

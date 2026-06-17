@@ -5,6 +5,8 @@ import { autoTracePrivate, buildSceneFromPlan, fetchPrivateManifest, privateFile
 import { loadRasterImage } from '../lib/pdf';
 import { planFromImage, planFromPdf } from '../lib/import-plan';
 import { useEditor } from '../store/editor-store';
+import { Icon } from '../components/ui/Icon';
+import { Mono } from '../components/ui/primitives';
 
 function readAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -83,11 +85,18 @@ export function UploadPage() {
   );
 
   return (
-    <div className="flex h-screen flex-col bg-canvas-bg text-neutral-100">
-      <header className="flex items-center gap-3 border-b border-panel-border bg-panel px-4 py-2">
-        <Link to="/" className="text-sm font-semibold text-accent">HomeCanvas AI</Link>
-        <span className="text-xs text-neutral-500">Upload plans</span>
-        <span className="ml-auto text-[11px] text-neutral-600">local-first · files are copied into your machine only, never uploaded anywhere</span>
+    <div className="flex h-screen flex-col bg-app text-ink">
+      <header className="flex h-[54px] flex-shrink-0 items-center gap-3.5 border-b border-line bg-panel px-[18px]">
+        <Link to="/" className="inline-flex items-center gap-2 text-[16px] font-bold tracking-[-0.3px] text-accent">
+          <span className="flex h-6 w-6 items-center justify-center rounded-[7px] bg-accent text-white">
+            <Icon name="home" className="text-[14px]" strokeWidth={2} />
+          </span>
+          <span className="hidden sm:inline">HomeCanvas AI</span>
+        </Link>
+        <span className="text-[14px] text-dim">Upload plans</span>
+        <span className="ml-auto hidden text-[12px] text-faint md:inline">
+          local-first · files are copied onto your machine only, never uploaded anywhere
+        </span>
       </header>
 
       <div className="mx-auto w-full max-w-3xl flex-1 overflow-y-auto p-6">
@@ -96,45 +105,47 @@ export function UploadPage() {
           onDragLeave={() => setDrag(false)}
           onDrop={(e) => { e.preventDefault(); setDrag(false); void handleFiles(e.dataTransfer.files); }}
           onClick={() => inputRef.current?.click()}
-          className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-12 text-center transition ${
-            drag ? 'border-accent bg-accent/10' : 'border-panel-border bg-panel hover:border-accent/50'
+          className={`flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed p-12 text-center transition ${
+            drag ? 'border-accent bg-wash' : 'border-[#c7ccd6] bg-panel hover:border-accent/50 hover:bg-wash/40'
           }`}
         >
-          <div className="text-lg font-semibold text-neutral-100">Drop a floor plan here</div>
-          <div className="mt-1 text-sm text-neutral-400">PDF, image, or DXF — or click to choose</div>
-          <input
-            ref={inputRef}
-            type="file"
-            accept={ACCEPT}
-            multiple
-            className="hidden"
-            onChange={(e) => void handleFiles(e.target.files)}
-          />
+          <span className="flex h-[52px] w-[52px] items-center justify-center rounded-2xl bg-wash text-accent">
+            <Icon name="upload" className="text-[24px]" strokeWidth={2} />
+          </span>
+          <div className="text-lg font-bold text-ink">Drop a floor plan here</div>
+          <Mono className="text-[12.5px] text-faint">PDF · PNG · JPG · DXF — or click to choose</Mono>
+          <input ref={inputRef} type="file" accept={ACCEPT} multiple className="hidden" onChange={(e) => void handleFiles(e.target.files)} />
         </div>
 
-        {busy && <div className="mt-3 rounded bg-accent/15 px-3 py-2 text-xs text-accent">{busy}</div>}
-        {err && <div className="mt-3 rounded border border-red-900 bg-red-950/80 px-3 py-2 text-xs text-red-200">{err}</div>}
+        {busy && <div className="mt-3 rounded-lg bg-wash px-3 py-2 text-xs font-semibold text-accent">{busy}</div>}
+        {err && <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{err}</div>}
 
-        <h2 className="mb-2 mt-6 text-sm font-semibold text-neutral-200">
-          Plans on this machine{planFiles.length > 0 ? ` (${planFiles.length})` : ''}
+        <h2 className="mb-2 mt-7 text-[13px] font-bold uppercase tracking-[1.2px] text-faint">
+          Plans on this machine{planFiles.length > 0 ? ` · ${planFiles.length}` : ''}
         </h2>
         {planFiles.length === 0 ? (
-          <p className="text-sm text-neutral-500">None yet. Drop a plan above, or place files directly in <code className="text-xs">private-home-inputs/raw/</code>.</p>
+          <p className="text-sm text-faint">
+            None yet. Drop a plan above, or place files directly in{' '}
+            <code className="rounded bg-soft px-1 font-mono text-xs">private-home-inputs/raw/</code>.
+          </p>
         ) : (
-          <ul className="divide-y divide-panel-border overflow-hidden rounded-lg border border-panel-border bg-panel">
+          <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-panel hc-card">
             {planFiles.map((f) => (
               <li key={f.id} className="flex items-center gap-3 px-4 py-3">
+                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[9px] bg-soft text-dim">
+                  <Icon name="image" className="text-[18px]" />
+                </span>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm text-neutral-200">{f.fileName}</div>
-                  <div className="text-xs text-neutral-500">
+                  <div className="truncate text-sm font-semibold text-ink">{f.fileName}</div>
+                  <Mono className="text-xs text-faint">
                     {f.role} · {(f.bytes / 1024).toFixed(0)} KB
                     {autoMsg[f.id] && <span className="ml-2 text-accent">· {autoMsg[f.id]}</span>}
-                  </div>
+                  </Mono>
                 </div>
                 {f.fileName.toLowerCase().endsWith('.dxf') && (
                   <button
                     onClick={() => void runAuto(f.id, f.filePath)}
-                    className="rounded bg-neutral-800 px-3 py-1.5 text-xs text-neutral-200 hover:bg-neutral-700"
+                    className="rounded-[9px] border border-line bg-panel px-3 py-1.5 text-xs font-semibold text-dim transition hover:bg-soft"
                   >
                     Auto-trace
                   </button>
@@ -142,21 +153,36 @@ export function UploadPage() {
                 {(f.mimeType === 'application/pdf' || f.mimeType.startsWith('image/')) && (
                   <button
                     onClick={() => void runImport(f.id, f.filePath, f.mimeType)}
-                    className="rounded bg-accent/15 px-3 py-1.5 text-xs text-accent hover:bg-accent/25"
+                    className="rounded-[9px] bg-accent px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#403bd6]"
                     title="Extract walls and review in the verify wizard"
                   >
                     Build 3D
                   </button>
                 )}
-                <Link to="/verify" className="rounded bg-accent/20 px-3 py-1.5 text-xs text-accent hover:bg-accent/30">Trace →</Link>
+                <Link
+                  to="/verify"
+                  className="rounded-[9px] bg-wash px-3 py-1.5 text-xs font-semibold text-accent transition hover:bg-[#e3e1fb]"
+                >
+                  Trace →
+                </Link>
               </li>
             ))}
           </ul>
         )}
 
-        <div className="mt-6 flex gap-2 text-sm">
-          <Link to="/verify" className="rounded bg-accent/15 px-3 py-2 text-accent hover:bg-accent/25">Open tracing wizard</Link>
-          <Link to="/design/my-home" className="rounded bg-neutral-800 px-3 py-2 text-neutral-300 hover:bg-neutral-700">Go to 3D view</Link>
+        <div className="mt-6 flex flex-wrap gap-2.5 text-sm">
+          <Link
+            to="/verify"
+            className="rounded-[10px] bg-accent px-4 py-2.5 text-sm font-semibold text-white hc-glow transition hover:bg-[#403bd6]"
+          >
+            Open tracing wizard
+          </Link>
+          <Link
+            to="/design/my-home"
+            className="rounded-[10px] border border-line bg-panel px-4 py-2.5 text-sm font-semibold text-ink transition hover:bg-soft"
+          >
+            Go to 3D view
+          </Link>
         </div>
       </div>
     </div>

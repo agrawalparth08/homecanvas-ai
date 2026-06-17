@@ -5,7 +5,8 @@ export type IconName =
   | 'home' | 'arrowRight' | 'cube' | 'image' | 'layers' | 'compare'
   | 'lock' | 'unlock' | 'warning' | 'check' | 'trash' | 'mail' | 'camera'
   | 'chevronUp' | 'chevronDown' | 'chevronLeft' | 'chevronRight'
-  | 'rotateCcw' | 'rotateCw' | 'walk' | 'orbit' | 'stairs';
+  | 'rotateCcw' | 'rotateCw' | 'walk' | 'orbit' | 'stairs'
+  | 'search' | 'grid' | 'clock' | 'wand' | 'sun' | 'aperture' | 'denoise' | 'share' | 'user';
 
 const SHAPES: Record<IconName, ReactNode> = {
   pencil: <path d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3Zm10.5-13.5 3 3" />,
@@ -18,7 +19,7 @@ const SHAPES: Record<IconName, ReactNode> = {
   upload: <><path d="M12 16V4m0 0L8 8m4-4 4 4" /><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /></>,
   undo: <path d="M9 7 4 12l5 5M4 12h11a5 5 0 0 1 0 10h-1" />,
   redo: <path d="m15 7 5 5-5 5M20 12H9a5 5 0 0 0 0 10h1" />,
-  home: <path d="M4 11 12 4l8 7M6 10v9h12v-9M10 19v-5h4v5" />,
+  home: <><path d="M3.5 10.5 12 3.5l8.5 7" /><path d="M5.5 9.5V20h13V9.5" /><path d="M10 20v-5.5h4V20" /></>,
   arrowRight: <path d="M5 12h13m-5-5 5 5-5 5" />,
   cube: <><path d="M12 3 21 8v8l-9 5-9-5V8z" /><path d="M3 8l9 5 9-5M12 13v8" /></>,
   image: <><rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="8.5" cy="9.5" r="1.5" /><path d="m4 18 5-5 4 4 3-3 4 4" /></>,
@@ -40,6 +41,15 @@ const SHAPES: Record<IconName, ReactNode> = {
   walk: <><circle cx="13" cy="4.5" r="1.6" /><path d="M13 7v5l3 3M13 9l-3 1.5-1 4.5M13 12l1 8M11 14l-2 6" /></>,
   orbit: <><circle cx="12" cy="12" r="3" /><ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(28 12 12)" /></>,
   stairs: <path d="M4 20v-3h4v-3h4v-3h4V8h4" />,
+  search: <><circle cx="11" cy="11" r="7" /><path d="m20 20-3.2-3.2" /></>,
+  grid: <><rect x="3.5" y="4.5" width="7" height="7" rx="1.5" /><rect x="13.5" y="4.5" width="7" height="7" rx="1.5" /><rect x="3.5" y="13.5" width="7" height="7" rx="1.5" /><rect x="13.5" y="13.5" width="7" height="7" rx="1.5" /></>,
+  clock: <><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" /></>,
+  wand: <path d="m4 4 7 16 2.5-6.5L20 11Z" />,
+  sun: <><path d="M12 3v3M12 18v3M5 12H2M22 12h-3M6 6 4 4M20 20l-2-2M6 18l-2 2M20 4l-2 2" /><circle cx="12" cy="12" r="3.5" /></>,
+  aperture: <><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="3" /></>,
+  denoise: <path d="M3 12h4l3 7 4-14 3 7h4" />,
+  share: <><circle cx="6" cy="12" r="2.5" /><circle cx="17" cy="6" r="2.5" /><circle cx="17" cy="18" r="2.5" /><path d="M8.2 10.8 14.8 7.2M8.2 13.2l6.6 3.6" /></>,
+  user: <><circle cx="12" cy="8" r="4" /><path d="M4 20a8 8 0 0 1 16 0" /></>,
 };
 
 export function Icon({ name, className = '', strokeWidth = 1.7 }: { name: IconName; className?: string; strokeWidth?: number }) {

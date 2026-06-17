@@ -1,6 +1,8 @@
 import { buildStylePackApplication } from '@lib/styles/apply';
 import { STYLE_PACKS } from '@lib/styles/style-packs';
 import { useEditor } from '../../store/editor-store';
+import { Icon } from '../ui/Icon';
+import { FOCUS_RING, SectionLabel, TierBadge } from '../ui/primitives';
 
 function RoomsSection() {
   const scene = useEditor((s) => s.scene);
@@ -13,22 +15,25 @@ function RoomsSection() {
 
   return (
     <div>
-      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">Rooms</h3>
-      <div className="flex flex-col gap-1">
-        {floor.rooms.map((room) => (
-          <button
-            key={room.id}
-            onClick={() => select({ type: 'room', id: room.id })}
-            className={`rounded px-2 py-1.5 text-left text-sm ${
-              selection?.id === room.id
-                ? 'bg-accent/20 text-accent'
-                : 'text-neutral-300 hover:bg-neutral-800'
-            }`}
-          >
-            {room.name}
-            <span className="ml-1 text-xs text-neutral-500">{room.openToSky ? '☀' : ''}</span>
-          </button>
-        ))}
+      <div className="px-2 pb-2 pt-1">
+        <SectionLabel>Rooms</SectionLabel>
+      </div>
+      <div className="flex flex-col gap-0.5 px-1">
+        {floor.rooms.map((room) => {
+          const active = selection?.id === room.id;
+          return (
+            <button
+              key={room.id}
+              onClick={() => select({ type: 'room', id: room.id })}
+              className={`flex items-center justify-between rounded-[8px] px-3 py-2 text-left text-[14px] ${FOCUS_RING} ${
+                active ? 'bg-wash font-semibold text-accent' : 'font-medium text-ink hover:bg-soft'
+              }`}
+            >
+              <span className="truncate">{room.name}</span>
+              {room.openToSky && <Icon name="sun" className="ml-1 flex-shrink-0 text-[13px] text-faint" />}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -52,31 +57,33 @@ function StylePacksSection() {
 
   return (
     <div>
-      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">Style packs</h3>
-      <div className="flex flex-col gap-2">
+      <div className="px-2 pb-2 pt-1">
+        <SectionLabel>Style packs</SectionLabel>
+      </div>
+      <div className="flex flex-col gap-2.5 px-1 pb-4">
         {STYLE_PACKS.map((pack) => (
-          <div key={pack.id} className="hc-card-glow rounded-lg border border-panel-border bg-neutral-900/60 p-2">
+          <div key={pack.id} className="rounded-[11px] border border-line bg-panel p-3 transition hover:border-wash-line">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-neutral-200">{pack.name}</span>
-              <span className="text-[10px] uppercase text-neutral-500">{pack.budgetTier}</span>
+              <span className="text-[13.5px] font-bold">{pack.name}</span>
+              <TierBadge tier={pack.budgetTier} />
             </div>
-            <div
-              className="mt-1.5 h-2.5 w-full rounded-full ring-1 ring-black/10"
+            <span
+              className="my-2.5 block h-2 w-full rounded-[5px]"
               title={pack.palette.slice(0, 5).join(' · ')}
               style={{ background: `linear-gradient(90deg, ${pack.palette.slice(0, 5).join(', ')})` }}
             />
-            <div className="mt-2 flex gap-1.5">
+            <div className="flex gap-1.5">
               <button
                 disabled={!selectedRoom}
                 onClick={() => apply(pack.id, false)}
-                className="flex-1 rounded bg-neutral-800 px-2 py-1 text-xs text-neutral-200 enabled:hover:bg-neutral-700 disabled:opacity-40"
+                className={`flex-1 rounded-[7px] bg-soft py-1.5 text-[12px] font-semibold text-dim transition ${FOCUS_RING} enabled:hover:bg-track disabled:opacity-40`}
                 title={selectedRoom ? `Apply to ${selectedRoom.name}` : 'Select a room first'}
               >
                 Room
               </button>
               <button
                 onClick={() => apply(pack.id, true)}
-                className="flex-1 rounded bg-neutral-800 px-2 py-1 text-xs text-neutral-200 hover:bg-neutral-700"
+                className={`flex-1 rounded-[7px] bg-accent py-1.5 text-[12px] font-semibold text-white transition ${FOCUS_RING} hover:bg-[#403bd6]`}
               >
                 Whole home
               </button>
@@ -90,7 +97,7 @@ function StylePacksSection() {
 
 export function LeftPanel() {
   return (
-    <div className="flex h-full w-60 flex-col gap-5 overflow-y-auto border-r border-panel-border bg-panel p-3">
+    <div className="flex h-full w-[252px] flex-shrink-0 flex-col gap-1 overflow-y-auto border-r border-line bg-sidebar py-4">
       <RoomsSection />
       <StylePacksSection />
     </div>

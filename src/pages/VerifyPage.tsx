@@ -104,7 +104,7 @@ function RescalePanel({ floor, flagged, onRescale }: { floor: Floor; flagged: bo
     if (r > 0 && wMm > 0) onRescale((r * 1000) / wMm);
   };
   return (
-    <div className={`rounded border p-2 text-xs ${flagged ? 'border-amber-700/60 bg-amber-950/30 text-amber-200' : 'border-panel-border bg-panel text-neutral-300'}`}>
+    <div className={`rounded-lg border p-2 text-xs ${flagged ? 'border-[#e9c89e] bg-[#fbf0e3] text-[#9a5a1e]' : 'border-line bg-panel text-dim'}`}>
       <div className="font-medium">{flagged ? '⚠ Scale looks off' : 'Rescale (optional)'}</div>
       <div className="mt-1 opacity-80">Current width ≈ {(wMm / 1000).toFixed(1)} m. Enter this floor’s real width:</div>
       <div className="mt-1.5 flex gap-1">
@@ -537,52 +537,86 @@ export function VerifyPage() {
   const tools = wstate.step === 'rooms' ? TOOLS_ROOMS : TOOLS_TRACE;
 
   return (
-    <div className="flex h-screen flex-col bg-canvas-bg text-neutral-100">
-      <header className="flex items-center gap-3 border-b border-panel-border bg-panel px-4 py-2">
-        <Link to="/" className="text-sm font-semibold text-accent">HomeCanvas AI</Link>
-        <span className="text-xs text-neutral-500">Trace your plan</span>
-        <div className="ml-4 flex items-center gap-1.5">
-          {scene.floors.map((f) => (
-            <button
-              key={f.id}
-              onClick={() => setFloorId(f.id)}
-              className={`rounded px-2 py-1 text-xs ${floorId === f.id ? 'bg-accent/25 text-accent' : 'bg-neutral-800 text-neutral-300'}`}
-            >
-              {f.name}
-            </button>
-          ))}
+    <div className="flex h-screen flex-col bg-app text-ink">
+      <header className="flex h-[60px] flex-shrink-0 items-center gap-3.5 overflow-x-auto border-b border-line bg-panel px-[18px]">
+        <Link to="/" className="inline-flex flex-shrink-0 items-center gap-1.5 text-[14px] font-semibold text-dim hover:text-ink">
+          <Icon name="chevronLeft" className="text-[16px]" /> {scene.name ?? 'Trace plan'}
+        </Link>
+        {scene.floors.length > 1 && (
+          <>
+            <span className="h-[22px] w-px flex-shrink-0 bg-line" />
+            <div className="flex flex-shrink-0 items-center gap-1.5">
+              {scene.floors.map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => setFloorId(f.id)}
+                  className={`rounded-[8px] px-2.5 py-1 text-xs font-semibold ${floorId === f.id ? 'bg-wash text-accent' : 'bg-soft text-dim'}`}
+                >
+                  {f.name}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+        <span className="h-[22px] w-px flex-shrink-0 bg-line" />
+        {/* step chips: done (green check) · active (accent) · upcoming (faint) */}
+        <div className="flex flex-shrink-0 items-center gap-1.5">
+          {WIZARD_STEPS.slice(0, 5).map((s, i) => {
+            const done = i < stepIdx;
+            const active = i === stepIdx;
+            return (
+              <span key={s} className="flex items-center gap-1.5">
+                {i > 0 && <Icon name="chevronRight" className="text-[13px] text-[#cdd2dc]" />}
+                <span
+                  className={`inline-flex items-center gap-1.5 rounded-[8px] px-2.5 py-1.5 text-[13px] font-semibold ${
+                    done
+                      ? 'bg-[#e9f6ef] text-ok'
+                      : active
+                        ? 'bg-wash text-accent shadow-[inset_0_0_0_1px_var(--color-wash-line)]'
+                        : 'text-faint'
+                  }`}
+                >
+                  {done && <Icon name="check" className="text-[13px]" strokeWidth={2.6} />}
+                  {active && <span className="h-[7px] w-[7px] rounded-full bg-accent" />}
+                  {STEP_TITLES[s]}
+                </span>
+              </span>
+            );
+          })}
         </div>
-        <div className="ml-auto flex items-center gap-2 text-xs text-neutral-500">
-          {WIZARD_STEPS.slice(0, 5).map((s, i) => (
-            <span key={s} className={i === stepIdx ? 'font-semibold text-accent' : ''}>
-              {i + 1}. {STEP_TITLES[s]}
-            </span>
-          ))}
-        </div>
+        <span className="flex-1" />
+        {wstate.step === 'review' && (
+          <button
+            onClick={() => void finish()}
+            className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-[10px] bg-accent px-4 py-2 text-[13px] font-semibold text-white hc-glow transition hover:bg-[#403bd6]"
+          >
+            Done · open in 3D
+          </button>
+        )}
       </header>
 
-      <div className="flex items-center gap-3 border-b border-panel-border bg-panel/60 px-4 py-2">
+      <div className="flex flex-shrink-0 items-center gap-3 border-b border-line bg-panel px-[18px] py-2.5">
         <div className="text-sm">
-          <span className="font-semibold text-neutral-100">{STEP_TITLES[wstate.step]}.</span>{' '}
-          <span className="text-neutral-400">{STEP_HELP[wstate.step]}</span>
+          <span className="font-bold text-ink">{STEP_TITLES[wstate.step]}.</span>{' '}
+          <span className="text-dim">{STEP_HELP[wstate.step]}</span>
         </div>
         <div className="ml-auto flex items-center gap-2">
           <button
             onClick={() => setWizard((w) => prevStep({ ...wstate, ...w }))}
             disabled={stepIdx === 0}
-            className="rounded bg-neutral-800 px-3 py-1.5 text-xs text-neutral-200 enabled:hover:bg-neutral-700 disabled:opacity-40"
+            className="rounded-[9px] border border-line bg-panel px-3 py-1.5 text-xs font-semibold text-dim transition enabled:hover:bg-soft disabled:opacity-40"
           >
             ‹ Back
           </button>
           {wstate.step === 'review' ? (
-            <button onClick={() => void finish()} className="rounded bg-accent/30 px-3 py-1.5 text-xs text-accent hover:bg-accent/40">
+            <button onClick={() => void finish()} className="rounded-[9px] bg-accent px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#403bd6]">
               Save &amp; open in 3D →
             </button>
           ) : (
             <button
               onClick={() => setWizard((w) => nextStep({ ...wstate, ...w }))}
               disabled={!canAdvance(wstate)}
-              className="rounded bg-accent/25 px-3 py-1.5 text-xs text-accent enabled:hover:bg-accent/35 disabled:opacity-40"
+              className="rounded-[9px] bg-accent px-3 py-1.5 text-xs font-semibold text-white transition enabled:hover:bg-[#403bd6] disabled:opacity-40"
             >
               Next ›
             </button>
@@ -590,16 +624,16 @@ export function VerifyPage() {
         </div>
       </div>
 
-      {err && <div className="bg-red-950/80 px-4 py-1 text-xs text-red-200">{err}</div>}
-      {busy && <div className="bg-accent/15 px-4 py-1 text-xs text-accent">{busy}</div>}
+      {err && <div className="bg-rose-50 px-4 py-1.5 text-xs font-medium text-rose-700">{err}</div>}
+      {busy && <div className="bg-wash px-4 py-1.5 text-xs font-semibold text-accent">{busy}</div>}
       {scaleWarning && (
-        <div className="flex items-center gap-2 bg-amber-950/80 px-4 py-1.5 text-xs text-amber-200">
+        <div className="flex items-center gap-2 bg-[#fbf0e3] px-4 py-1.5 text-xs text-[#9a5a1e]">
           <Icon name="warning" />
           <span>
             This import reads as {scaleWarning.metrics.widthM}×{scaleWarning.metrics.depthM} m
             {scaleWarning.issues[0] ? ` — ${scaleWarning.issues[0].message}` : ''}. Set the real width in the Scale step, or dismiss if it’s correct.
           </span>
-          <button onClick={() => setScaleWarning(null)} className="ml-auto rounded bg-amber-900/60 px-2 py-0.5 hover:bg-amber-900">
+          <button onClick={() => setScaleWarning(null)} className="ml-auto rounded-md bg-[#f0d8bc] px-2 py-0.5 font-semibold hover:bg-[#ecceac]">
             Dismiss
           </button>
         </div>
@@ -704,7 +738,7 @@ export function VerifyPage() {
               {wstate.step === 'scale' && (
                 <div className="text-xs text-neutral-400">
                   Click two points along a known dimension, then type its length. The plan rescales to real-world mm.
-                  {calibration && <div className="mt-2 text-emerald-400">✓ scale set ({calibration.mmPerPx.toFixed(1)} mm/px)</div>}
+                  {calibration && <div className="mt-2 font-semibold text-ok">✓ scale set ({calibration.mmPerPx.toFixed(1)} mm/px)</div>}
                 </div>
               )}
               {wstate.step === 'scale' && floor.walls.length > 0 && (

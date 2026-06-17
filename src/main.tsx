@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Route, Routes } from 'react-router';
 import '@fontsource-variable/inter'; // self-hosted geometric sans (bundled, no CDN)
+import '@fontsource-variable/jetbrains-mono'; // self-hosted mono for measurements (no CDN)
 import { DesignPage } from './pages/DesignPage';
 import { HomePage } from './pages/HomePage';
 import { UploadPage } from './pages/UploadPage';

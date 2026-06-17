@@ -20,6 +20,7 @@ import { useEditor } from '../../store/editor-store';
 import { reportError } from '../../store/error-store';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { Icon } from '../ui/Icon';
+import { Mono, SectionLabel } from '../ui/primitives';
 import { RoomNameEditor } from './RoomNameEditor';
 import { StairControls } from './StairControls';
 
@@ -205,6 +206,22 @@ function ReferencesSection({ scene, selectedRoomId }: { scene: HomeScene; select
   );
 }
 
+/** Darken a #rrggbb hex toward black by `amt` (0..1) for a subtle swatch gradient. */
+function darken(hex: string, amt: number): string {
+  const m = /^#?([0-9a-fA-F]{6})$/.exec(hex.trim());
+  if (!m) return hex;
+  const n = parseInt(m[1]!, 16);
+  const r = Math.max(0, Math.round(((n >> 16) & 255) * (1 - amt)));
+  const g = Math.max(0, Math.round(((n >> 8) & 255) * (1 - amt)));
+  const b = Math.max(0, Math.round((n & 255) * (1 - amt)));
+  return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
+}
+
+/**
+ * The signature material swatch grid — a row of material chips (gradient from each
+ * material's base colour); the active one gets the accent ring. Same props as the
+ * old select, so every call site is unchanged.
+ */
 function MaterialSelect({
   scene,
   value,
@@ -217,21 +234,28 @@ function MaterialSelect({
   label: string;
 }) {
   const sorted = [...scene.materials].sort((a, b) => a.name.localeCompare(b.name));
+  const selected = sorted.find((m) => m.id === value);
   return (
-    <label className="block text-xs text-neutral-400">
-      {label}
-      <select
-        className="mt-1 w-full rounded-lg border border-panel-border bg-panel px-2.5 py-2 text-sm text-neutral-100 focus:border-accent focus:outline-none"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      >
+    <div>
+      <SectionLabel>{label}</SectionLabel>
+      <div className="mt-2.5 grid grid-cols-5 gap-2">
         {sorted.map((m: Material) => (
-          <option key={m.id} value={m.id}>
-            {m.name}
-          </option>
+          <button
+            key={m.id}
+            type="button"
+            onClick={() => onChange(m.id)}
+            title={m.name}
+            className={`aspect-square rounded-[9px] transition ${
+              m.id === value
+                ? 'shadow-[0_0_0_2px_var(--color-accent),0_0_0_4px_#fff]'
+                : 'ring-1 ring-black/5 hover:scale-[1.06]'
+            }`}
+            style={{ background: `linear-gradient(135deg, ${m.baseColor}, ${darken(m.baseColor, 0.22)})` }}
+          />
         ))}
-      </select>
-    </label>
+      </div>
+      {selected && <Mono className="mt-2 block text-[11.5px] text-dim">{selected.name}</Mono>}
+    </div>
   );
 }
 
@@ -355,8 +379,9 @@ export function Inspector() {
 
   const header = (title: string, subtitle: string) => (
     <div>
-      <div className="text-sm font-semibold text-neutral-100">{title}</div>
-      <div className="text-xs text-neutral-500">{subtitle}</div>
+      <SectionLabel>Selection</SectionLabel>
+      <div className="mt-2 text-[15px] font-bold text-ink">{title}</div>
+      <Mono className="text-[11px] text-faint">{subtitle}</Mono>
     </div>
   );
 

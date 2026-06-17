@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { Icon, type IconName } from './Icon';
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
+type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'dark';
 type Size = 'sm' | 'md';
 
 /**
@@ -21,12 +21,13 @@ const BASE =
 
 const VARIANTS: Record<Variant, string> = {
   primary:
-    'bg-accent text-white shadow-sm shadow-accent/25 hover:bg-[#403bd6] active:bg-[#3a35c4]',
+    'bg-accent text-white shadow-[0_10px_22px_-10px_rgba(75,70,229,0.6)] hover:bg-[#403bd6] active:bg-[#3a35c4]',
   secondary:
-    'border border-panel-border bg-panel text-neutral-100 hover:border-neutral-700 hover:bg-neutral-900',
-  ghost: 'text-neutral-300 hover:bg-neutral-800 hover:text-neutral-100',
+    'border border-line bg-panel text-ink hover:bg-soft',
+  ghost: 'text-dim hover:bg-soft hover:text-ink',
   danger:
     'border border-transparent text-rose-600 hover:border-rose-200 hover:bg-rose-50',
+  dark: 'bg-ink text-white hover:bg-[#2a2d37] active:bg-[#13141b]',
 };
 
 const SIZES: Record<Size, string> = {

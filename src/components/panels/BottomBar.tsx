@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchVariants } from '../../api';
 import { Button } from '../ui/Button';
 import { Icon, type IconName } from '../ui/Icon';
+import { FOCUS_RING } from '../ui/primitives';
 import { useEditor, type ViewMode } from '../../store/editor-store';
 import { reportError } from '../../store/error-store';
 
@@ -18,8 +19,8 @@ function Seg({ active, onClick, children, title }: { active: boolean; onClick: (
     <button
       onClick={onClick}
       title={title}
-      className={`inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors ${
-        active ? 'bg-accent text-white shadow-sm shadow-accent/25' : 'text-neutral-400 hover:bg-panel hover:text-neutral-100'
+      className={`inline-flex h-[30px] items-center gap-1.5 rounded-[7px] px-3 text-[12.5px] font-semibold transition ${FOCUS_RING} ${
+        active ? 'bg-accent text-white' : 'text-dim hover:text-ink'
       }`}
     >
       {children}
@@ -27,7 +28,7 @@ function Seg({ active, onClick, children, title }: { active: boolean; onClick: (
   );
 }
 
-const SEG_GROUP = 'flex gap-0.5 rounded-lg border border-panel-border bg-neutral-900 p-0.5';
+const SEG_GROUP = 'flex flex-shrink-0 gap-0.5 rounded-[9px] bg-track p-[3px]';
 
 export function BottomBar() {
   const projectId = useEditor((s) => s.projectId);
@@ -118,8 +119,8 @@ export function BottomBar() {
   };
 
   return (
-    <div className="flex items-center gap-2.5 border-t border-panel-border bg-panel px-3 py-2">
-      <div className="flex gap-1">
+    <div className="flex h-[62px] flex-shrink-0 items-center gap-2.5 overflow-x-auto border-t border-line bg-panel px-4">
+      <div className="flex flex-shrink-0 gap-1">
         <Button variant="ghost" size="sm" icon="undo" disabled={undoCount === 0} onClick={undo} title="Undo (⌘Z)">
           Undo
         </Button>
@@ -149,16 +150,16 @@ export function BottomBar() {
         </Seg>
       </div>
       {viewMode === 'walk' && (
-        <span className="rounded-md bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent">
+        <span className="hidden flex-shrink-0 rounded-lg bg-wash px-2.5 py-1.5 text-xs font-semibold text-accent lg:inline">
           Drag to look · WASD to move
         </span>
       )}
 
-      <div className="ml-auto flex items-center gap-1.5">
+      <div className="ml-auto flex flex-shrink-0 items-center gap-1.5">
         <Button variant="secondary" size="sm" icon="camera" onClick={() => void onSavePhoto()} disabled={!canShoot || shooting} title="Export a PNG of the current view">
           {shooting ? 'Saving…' : 'Photo'}
         </Button>
-        <Button variant="primary" size="sm" icon="sparkles" onClick={() => setPhotoMode(true)} title="Photoreal path-traced render (GPU)">
+        <Button variant="primary" size="sm" icon="sun" onClick={() => setPhotoMode(true)} title="Photoreal path-traced render (GPU)">
           Photoreal
         </Button>
         {blenderAvailable && (
@@ -174,7 +175,7 @@ export function BottomBar() {
           </Button>
         )}
 
-        <span className="mx-0.5 h-5 w-px bg-panel-border" />
+        <span className="mx-0.5 h-[26px] w-px bg-line" />
 
         <Button
           variant="secondary"
@@ -197,10 +198,10 @@ export function BottomBar() {
           Slider
         </Button>
 
-        <span className="mx-0.5 h-5 w-px bg-panel-border" />
+        <span className="mx-0.5 h-[26px] w-px bg-line" />
 
         <select
-          className="h-8 rounded-lg border border-panel-border bg-panel px-2.5 text-xs text-neutral-200 focus:border-accent focus:outline-none"
+          className="h-8 rounded-[9px] border border-line bg-panel px-2.5 text-xs font-semibold text-dim focus:border-accent focus:outline-none"
           value={activeVariantId ?? ''}
           onChange={(e) => e.target.value && void loadVariant(e.target.value)}
         >
@@ -215,7 +216,7 @@ export function BottomBar() {
           {saving ? 'Saving…' : 'Save'}
         </Button>
         <Button
-          variant="ghost"
+          variant="dark"
           size="sm"
           icon="upload"
           title="Download this scene as JSON (re-importable)"

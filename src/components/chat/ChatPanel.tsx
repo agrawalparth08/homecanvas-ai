@@ -8,6 +8,7 @@ import { fileToDataUrl, imageToPaletteInput } from '../../agent/image-palette';
 import { uploadPrivateFile } from '../../api';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
+import { FOCUS_RING } from '../ui/primitives';
 import { useEditor } from '../../store/editor-store';
 import { useChat, type ChatMsg } from '../../store/chat-store';
 import { logEvent } from '../../store/log-store';
@@ -194,14 +195,14 @@ export function ChatPanel() {
       }}
     >
       {bridgeAvailable && (
-        <div className="flex items-center gap-2 border-b border-panel-border px-3 py-1.5 text-[11px] text-neutral-500">
+        <div className="flex items-center gap-2 border-b border-line px-3 py-2 text-[11px] font-semibold uppercase tracking-[1px] text-faint">
           <span>Engine</span>
-          <div className="flex overflow-hidden rounded-md border border-panel-border">
+          <div className="flex gap-0.5 rounded-[8px] bg-track p-[3px] normal-case tracking-normal">
             {(['mock', 'bridge'] as const).map((pv) => (
               <button
                 key={pv}
                 onClick={() => chooseProvider(pv)}
-                className={`px-2.5 py-1 font-medium ${provider === pv ? 'bg-accent text-white' : 'text-neutral-500 hover:text-neutral-300'}`}
+                className={`rounded-[6px] px-2.5 py-1 text-[11px] font-semibold ${FOCUS_RING} ${provider === pv ? 'bg-accent text-white' : 'text-dim hover:text-ink'}`}
               >
                 {pv === 'mock' ? 'Built-in' : 'Claude bridge'}
               </button>
@@ -213,9 +214,9 @@ export function ChatPanel() {
         {msgs.map((m, i) => (
           <div key={i} className={m.role === 'user' ? 'text-right' : ''}>
             {m.image && (
-              <img src={m.image} alt="reference" className="mb-1 inline-block max-h-28 rounded-lg border border-panel-border object-cover" />
+              <img src={m.image} alt="reference" className="mb-1 inline-block max-h-28 rounded-xl border border-line object-cover" />
             )}
-            <div className={`inline-block max-w-[15rem] rounded-lg px-3 py-1.5 text-[13px] leading-snug ${m.role === 'user' ? 'bg-accent text-white' : 'bg-neutral-800 text-neutral-200'}`}>
+            <div className={`inline-block max-w-[88%] px-3.5 py-2.5 text-[13.5px] leading-[1.5] ${m.role === 'user' ? 'rounded-[14px_14px_4px_14px] bg-accent text-white' : 'rounded-[14px_14px_14px_4px] bg-[#f4f5f8] text-ink'}`}>
               {m.text}
             </div>
             {m.palette && (
@@ -229,54 +230,64 @@ export function ChatPanel() {
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                 <Button variant="primary" size="sm" icon="check" onClick={() => decide(i, true)}>Apply</Button>
                 <Button variant="secondary" size="sm" onClick={() => decide(i, false)}>Dismiss</Button>
-                {m.proposal.skippedLocked.length > 0 && <span className="text-[10px] text-amber-600">{m.proposal.skippedLocked.length} locked skipped</span>}
+                {m.proposal.skippedLocked.length > 0 && <span className="text-[10px] text-warn">{m.proposal.skippedLocked.length} locked skipped</span>}
               </div>
             )}
             {m.done && (
-              <div className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-neutral-500">
-                {m.done === 'applied' && <Icon name="check" className="text-emerald-600" />}
+              <div className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-faint">
+                {m.done === 'applied' && <Icon name="check" className="text-ok" />}
                 {m.done === 'applied' ? 'applied' : m.done === 'rejected' ? 'rejected by validator' : 'dismissed'}
               </div>
             )}
           </div>
         ))}
-        {busy && <div className="text-[11px] text-neutral-500">thinking…</div>}
+        {busy && <div className="text-[11px] text-faint">thinking…</div>}
         {msgs.length <= 1 && (
           <div className="flex flex-wrap gap-1.5 pt-1">
             {SUGGESTIONS.map((s) => (
-              <button key={s} onClick={() => void send(s)} className="rounded-lg border border-panel-border bg-panel px-2.5 py-1 text-[11px] text-neutral-400 transition-colors hover:border-accent/50 hover:text-neutral-200">{s}</button>
+              <button key={s} onClick={() => void send(s)} className={`rounded-lg bg-wash px-3 py-1.5 text-[12px] font-semibold text-accent transition ${FOCUS_RING} hover:bg-[#e3e1fb]`}>{s}</button>
             ))}
           </div>
         )}
       </div>
 
       {attached && (
-        <div className="flex items-center gap-2 border-t border-panel-border px-2.5 pt-2">
-          <img src={attached.dataUrl} alt="attached" className="h-10 w-10 rounded border border-panel-border object-cover" />
-          <span className="text-[11px] text-neutral-400">Reference attached — name a room to recolour it from this.</span>
-          <button onClick={() => setAttached(null)} className="ml-auto text-neutral-500 hover:text-neutral-300" title="Remove">
+        <div className="flex items-center gap-2 border-t border-line px-2.5 pt-2">
+          <img src={attached.dataUrl} alt="attached" className="h-10 w-10 rounded-lg border border-line object-cover" />
+          <span className="text-[11px] text-dim">Reference attached — name a room to recolour it from this.</span>
+          <button onClick={() => setAttached(null)} className="ml-auto text-faint hover:text-dim" title="Remove">
             <Icon name="close" />
           </button>
         </div>
       )}
 
-      <div className="flex items-center gap-2 border-t border-panel-border p-2.5">
-        <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => void attachFile(e.target.files?.[0])} />
-        <button
-          onClick={() => fileRef.current?.click()}
-          title="Attach a reference image"
-          className={`rounded-lg border border-panel-border px-2 py-2 text-sm ${attached ? 'text-accent' : 'text-neutral-400 hover:text-neutral-200'}`}
-        >
-          <Icon name="image" />
-        </button>
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') void send(); }}
-          placeholder={attached ? 'Name a room (e.g. “the bedroom”)…' : 'Describe a change…'}
-          className="min-w-0 flex-1 rounded-lg border border-panel-border bg-neutral-900 px-3 py-2 text-sm text-neutral-100 outline-none placeholder:text-neutral-500 focus:border-accent/60"
-        />
-        <button onClick={() => void send()} disabled={busy} className="rounded-lg bg-accent px-3 py-2 text-sm font-medium text-neutral-950 hover:opacity-90 disabled:opacity-40">Send</button>
+      <div className="border-t border-line p-2.5">
+        <div className="flex items-center gap-2 rounded-xl border border-line bg-field px-2.5 py-1.5">
+          <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => void attachFile(e.target.files?.[0])} />
+          <button
+            onClick={() => fileRef.current?.click()}
+            title="Attach a reference image"
+            className={`text-[18px] ${attached ? 'text-accent' : 'text-faint hover:text-dim'}`}
+          >
+            <Icon name="image" />
+          </button>
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') void send(); }}
+            placeholder={attached ? 'Name a room (e.g. “the bedroom”)…' : 'Ask to change anything…'}
+            className="min-w-0 flex-1 bg-transparent py-1 text-[13.5px] text-ink outline-none placeholder:text-faint"
+          />
+          <button
+            onClick={() => void send()}
+            disabled={busy}
+            title="Send"
+            className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[9px] bg-accent text-white transition ${FOCUS_RING} hover:bg-[#403bd6] disabled:opacity-40`}
+          >
+            <Icon name="arrowRight" className="text-[16px]" strokeWidth={2.2} />
+          </button>
+        </div>
+        <p className="mt-2 text-center text-[11px] text-faint">Runs offline · no prompts leave your machine</p>
       </div>
     </div>
   );

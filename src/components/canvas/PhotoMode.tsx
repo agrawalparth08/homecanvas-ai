@@ -8,6 +8,7 @@ import type { HomeScene } from '@lib/scene/schemas';
 import { assetUrl, fetchAssetManifest } from '../../api';
 import { useEditor } from '../../store/editor-store';
 import { reportError } from '../../store/error-store';
+import { Icon } from '../ui/Icon';
 import { FloorContent } from './FloorContent';
 import { useMaterialMap } from './materials';
 
@@ -242,15 +243,22 @@ export function PhotoMode() {
         <CameraRig preset={preset} center={center} dist={d} />
       </Canvas>
 
-      <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between p-3">
-        <span className="pointer-events-auto rounded-md bg-black/60 px-3 py-1.5 text-xs text-white">
-          {!ready ? 'Building path tracer…' : `Photoreal · ${samples}/${MAX_SAMPLES} samples${samples >= MAX_SAMPLES ? ' · converged' : '…'}`}
-          {!hdriUrl && ' · no HDRI (run npm run fetch:assets for lighting)'}
+      {/* top bar — passthrough so drag-to-orbit works through the empty regions;
+          interactive children re-enable pointer events. */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap items-center gap-2.5 p-3.5">
+        <button
+          onClick={() => close(false)}
+          className="pointer-events-auto inline-flex items-center gap-1.5 rounded-[10px] bg-white/10 px-3 py-2 text-[13px] font-semibold text-white backdrop-blur transition hover:bg-white/20"
+        >
+          <Icon name="chevronLeft" className="text-[15px]" strokeWidth={2.2} /> Back to editor
+        </button>
+        <span className="inline-flex items-center gap-2 text-[15px] font-bold text-white">
+          <Icon name="camera" className="text-[17px]" /> Photo Mode
         </span>
+        <span className="flex-1" />
         {/* Camera angle presets — the raster orbit/top/walk/tour buttons don't drive
             this path-traced canvas. Free-drag still orbits. */}
-        <div className="pointer-events-auto flex items-center gap-1 rounded-md bg-black/60 p-1">
-          <span className="px-1 text-[11px] text-white/60">View</span>
+        <div className="pointer-events-auto flex gap-0.5 rounded-[10px] bg-white/10 p-1 backdrop-blur">
           {(
             [
               ['iso', 'Angled'],
@@ -261,32 +269,45 @@ export function PhotoMode() {
             <button
               key={p}
               onClick={() => setPreset(p)}
-              className={`rounded px-2.5 py-1 text-xs ${preset === p ? 'bg-white text-neutral-100' : 'text-white/85 hover:bg-white/15'}`}
+              className={`rounded-[7px] px-3 py-1.5 text-[12.5px] font-semibold transition ${
+                preset === p ? 'bg-accent text-white' : 'text-white/70 hover:text-white'
+              }`}
             >
               {label}
             </button>
           ))}
         </div>
-        <div className="pointer-events-auto flex gap-2">
-          <button
-            onClick={() => captureRef.current?.()}
-            disabled={!ready || samples < MIN_SAVE_SAMPLES}
-            title={
-              samples < MIN_SAVE_SAMPLES
-                ? `Let it refine first (${samples}/${MIN_SAVE_SAMPLES})`
-                : 'Save the converged still as a PNG'
-            }
-            className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent/85 disabled:bg-black/45 disabled:text-white/55"
-          >
-            {samples < MIN_SAVE_SAMPLES && ready ? `Save photo (${samples}/${MIN_SAVE_SAMPLES})` : 'Save photo'}
-          </button>
-          <button onClick={() => close(false)} className="rounded-md bg-black/60 px-3 py-1.5 text-xs font-medium text-white hover:bg-black/75">
-            Exit Photo Mode
-          </button>
-        </div>
+        <button
+          onClick={() => captureRef.current?.()}
+          disabled={!ready || samples < MIN_SAVE_SAMPLES}
+          title={
+            samples < MIN_SAVE_SAMPLES ? `Let it refine first (${samples}/${MIN_SAVE_SAMPLES})` : 'Save the converged still as a PNG'
+          }
+          className="pointer-events-auto inline-flex items-center gap-1.5 rounded-[10px] bg-accent px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-[#403bd6] disabled:opacity-45"
+        >
+          <Icon name="save" className="text-[15px]" />
+          {samples < MIN_SAVE_SAMPLES && ready ? `Save PNG (${samples}/${MIN_SAVE_SAMPLES})` : 'Save PNG'}
+        </button>
       </div>
-      <div className="pointer-events-none absolute inset-x-0 bottom-3 text-center text-[11px] text-white/50">
-        Drag to orbit · the image refines as samples accumulate
+
+      {/* converging badge */}
+      <span className="pointer-events-none absolute bottom-14 left-4 inline-flex items-center gap-2 rounded-[9px] bg-[rgba(20,22,32,0.7)] px-3 py-2 font-mono text-[12px] font-semibold text-white backdrop-blur">
+        <span className={`h-2 w-2 rounded-full ${samples >= MAX_SAMPLES ? 'bg-ok' : 'bg-warn hc-pulse-dot'}`} />
+        {!ready ? 'Building path tracer…' : `Photoreal · ${samples} / ${MAX_SAMPLES} samples`}
+        {!hdriUrl && ' · no HDRI'}
+      </span>
+
+      {/* progress */}
+      <div className="pointer-events-none absolute inset-x-6 bottom-5 flex items-center gap-3.5">
+        <span className="block h-[5px] flex-1 overflow-hidden rounded-full bg-white/15">
+          <span
+            className="block h-full rounded-full bg-accent transition-all"
+            style={{ width: `${Math.min(100, (samples / MAX_SAMPLES) * 100)}%` }}
+          />
+        </span>
+        <span className="font-mono text-[11.5px] text-white/55">
+          {!ready ? 'starting…' : samples >= MAX_SAMPLES ? 'converged' : 'refining…'}
+        </span>
       </div>
     </div>
   );

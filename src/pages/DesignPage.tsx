@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { SceneCanvas } from '../components/canvas/SceneCanvas';
+import { StageChrome } from '../components/canvas/StageChrome';
 import { BeforeAfterCompare } from '../components/canvas/BeforeAfterCompare';
 import { PhotoMode } from '../components/canvas/PhotoMode';
 import { Inspector } from '../components/inspector/Inspector';
@@ -16,33 +17,36 @@ import type { ProjectId } from '../api';
 function GuidedEmptyState() {
   const startFromSample = useEditor((s) => s.startFromSample);
   return (
-    <div className="flex h-full items-center justify-center">
-      <div className="hc-hero max-w-md rounded-xl border border-panel-border p-6">
-        <h2 className="text-lg font-semibold text-neutral-100">No “My Home” scene yet</h2>
-        <p className="mt-2 text-sm text-neutral-400">
+    <div className="flex h-full items-center justify-center p-6">
+      <div className="hc-hero max-w-md rounded-2xl border border-line p-6 hc-card">
+        <h2 className="text-lg font-bold text-ink">No “My Home” scene yet</h2>
+        <p className="mt-2 text-sm text-dim">
           The app looked for{' '}
-          <code className="text-xs">private-home-inputs/processed/scene-json/my-home.scene.json</code> and didn't find
-          one. Three ways to get going:
+          <code className="font-mono text-xs">private-home-inputs/processed/scene-json/my-home.scene.json</code> and
+          didn't find one. Three ways to get going:
         </p>
-        <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-neutral-300">
+        <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-dim">
           <li>
-            Drop your floor plan into <code className="text-xs">private-home-inputs/raw/</code> — the upload &amp;
-            tracing wizard (Phase 2) will turn it into your home.
+            Drop your floor plan into <code className="font-mono text-xs">private-home-inputs/raw/</code> — the upload
+            &amp; tracing wizard turns it into your home.
           </li>
           <li>Start from the sample home and reshape it room by room.</li>
           <li>
-            Run <code className="text-xs">npm run init:private</code> if the folder doesn't exist yet.
+            Run <code className="font-mono text-xs">npm run init:private</code> if the folder doesn't exist yet.
           </li>
         </ol>
-        <div className="mt-4 flex gap-2">
+        <div className="mt-5 flex gap-2.5">
           <button
             onClick={() => void startFromSample()}
-            className="rounded bg-accent/20 px-3 py-2 text-sm text-accent hover:bg-accent/30"
+            className="rounded-[10px] bg-accent px-4 py-2.5 text-sm font-semibold text-white hc-glow transition hover:bg-[#403bd6]"
           >
             Start from sample home
           </button>
-          <Link to="/upload" className="rounded bg-neutral-800 px-3 py-2 text-sm text-neutral-300 hover:bg-neutral-700">
-            Upload flow (Phase 2)
+          <Link
+            to="/upload"
+            className="rounded-[10px] border border-line bg-panel px-4 py-2.5 text-sm font-semibold text-ink transition hover:bg-soft"
+          >
+            Upload a plan
           </Link>
         </div>
       </div>
@@ -92,21 +96,25 @@ export function DesignPage() {
   }, [undo, redo]);
 
   return (
-    <div className="flex h-screen flex-col bg-canvas-bg text-neutral-100">
-      <header className="flex items-center gap-3 border-b border-panel-border bg-panel px-4 py-2">
-        <Link to="/" className="text-sm font-semibold text-accent">
-          HomeCanvas AI
+    <div className="flex h-screen flex-col bg-app text-ink">
+      <header className="flex h-[54px] flex-shrink-0 items-center gap-3.5 border-b border-line bg-panel px-[18px]">
+        <Link to="/" className="inline-flex flex-shrink-0 items-center gap-2 text-[16px] font-bold tracking-[-0.3px] text-accent">
+          <span className="flex h-6 w-6 items-center justify-center rounded-[7px] bg-accent text-white">
+            <Icon name="home" className="text-[14px]" strokeWidth={2} />
+          </span>
+          <span className="hidden sm:inline">HomeCanvas AI</span>
         </Link>
-        <span className="text-xs text-neutral-500">{scene?.name ?? projectId}</span>
-        <Link to="/verify" className="inline-flex items-center gap-1.5 rounded-md bg-accent/12 px-2.5 py-1 text-xs font-medium text-accent hover:bg-accent/20">
-          <Icon name="pencil" /> Trace plan
+        <span className="truncate text-[14px] text-dim">{scene?.name ?? projectId}</span>
+        <span className="hidden h-[22px] w-px flex-shrink-0 bg-line sm:block" />
+        <Link to="/verify" className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-[9px] bg-wash px-3 py-[7px] text-[13px] font-semibold text-accent transition hover:bg-[#e3e1fb]">
+          <Icon name="wand" className="text-[14px]" strokeWidth={2} /> <span className="hidden md:inline">Trace plan</span>
         </Link>
-        <Link to="/variants" className="inline-flex items-center gap-1.5 rounded-md bg-accent/12 px-2.5 py-1 text-xs font-medium text-accent hover:bg-accent/20">
-          <Icon name="columns" /> Boards
+        <Link to="/variants" className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-[9px] bg-soft px-3 py-[7px] text-[13px] font-semibold text-dim transition hover:bg-track">
+          <Icon name="columns" className="text-[14px]" strokeWidth={2} /> <span className="hidden md:inline">Boards</span>
         </Link>
-        {showBefore && <span className="rounded bg-accent/20 px-2 py-0.5 text-xs text-accent">BEFORE</span>}
-        <span className="ml-auto text-[11px] text-neutral-600">
-          local-first · nothing leaves this machine · visualizations are approximations, not construction drawings
+        {showBefore && <span className="flex-shrink-0 rounded bg-wash px-2 py-0.5 text-[11px] font-bold text-accent">BEFORE</span>}
+        <span className="ml-auto hidden truncate text-[12px] text-faint lg:inline">
+          local-first · nothing leaves this machine · visualizations are approximations
         </span>
       </header>
 
@@ -126,17 +134,18 @@ export function DesignPage() {
               ) : (
                 <SceneCanvas />
               )}
+              {compareMode !== 'slider' && !photoMode && (viewMode === 'orbit' || viewMode === 'top') && <StageChrome />}
               {viewMode === 'tour' && <TourPanel />}
               {photoMode && <PhotoMode />}
             </main>
             {viewMode !== 'tour' && (
-              <aside className="flex w-80 flex-col border-l border-panel-border bg-panel">
-                <div className="flex shrink-0 border-b border-panel-border text-xs font-medium">
+              <aside className="flex w-[340px] max-w-[42vw] flex-col border-l border-line bg-panel">
+                <div className="flex shrink-0 border-b border-line px-2">
                   {(['inspector', 'assistant', 'log'] as const).map((t) => (
                     <button
                       key={t}
                       onClick={() => setRightTab(t)}
-                      className={`flex flex-1 items-center justify-center px-3 py-2 capitalize ${rightTab === t ? 'border-b-2 border-accent text-accent' : 'text-neutral-500 hover:text-neutral-300'}`}
+                      className={`-mb-px inline-flex items-center gap-1 px-3.5 pb-3 pt-3.5 text-[14px] font-semibold capitalize ${rightTab === t ? 'border-b-2 border-accent text-accent' : 'text-faint hover:text-dim'}`}
                     >
                       {t === 'assistant' ? 'Assistant' : t === 'log' ? 'Log' : 'Inspector'}
                       {t === 'log' && <LogTabBadge />}

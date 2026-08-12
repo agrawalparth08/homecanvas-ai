@@ -52,6 +52,9 @@ export interface BlenderRenderOpts {
   hdri?: string;
   gpu?: boolean;
   timeoutMs?: number;
+  /** Explicit camera (Blender world meters, z-up): "x,y,z". Both or neither. */
+  cam?: string;
+  target?: string;
 }
 
 export type BlenderRenderResult = { ok: true; pngPath: string } | { ok: false; reason: string };
@@ -95,6 +98,7 @@ export async function renderWithBlender(scene: unknown, opts: BlenderRenderOpts 
   ];
   if (opts.hdri) args.push('--hdri', opts.hdri);
   if (opts.gpu) args.push('--gpu');
+  if (opts.cam && opts.target) args.push('--cam', opts.cam, '--target', opts.target);
 
   try {
     const { stdout } = await execFileP(bin, args, {

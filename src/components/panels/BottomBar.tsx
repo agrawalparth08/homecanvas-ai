@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchVariants } from '../../api';
+import { BatchRenderDialog } from '../ui/BatchRenderDialog';
 import { Button } from '../ui/Button';
 import { Icon, type IconName } from '../ui/Icon';
 import { FOCUS_RING } from '../ui/primitives';
 import { useEditor, type ViewMode } from '../../store/editor-store';
 import { reportError } from '../../store/error-store';
+import { useProfile } from '../../store/profile-store';
 
 const VIEW_MODES: { id: ViewMode; label: string; icon: IconName }[] = [
   { id: 'orbit', label: 'Orbit', icon: 'orbit' },
@@ -52,6 +54,7 @@ export function BottomBar() {
   const activeVariantId = useEditor((s) => s.activeVariantId);
   const capturePhoto = useEditor((s) => s.capturePhoto);
   const [shooting, setShooting] = useState(false);
+  const studioName = useProfile((s) => s.studioName);
 
   const onSavePhoto = async () => {
     if (!capturePhoto) return;
@@ -80,6 +83,7 @@ export function BottomBar() {
     staleTime: Infinity,
   });
   const [rendering, setRendering] = useState(false);
+  const [batchOpen, setBatchOpen] = useState(false);
 
   const renderBlender = async () => {
     if (!scene) return;
@@ -174,6 +178,18 @@ export function BottomBar() {
             {rendering ? 'Rendering…' : 'Cycles'}
           </Button>
         )}
+        {blenderAvailable && (
+          <Button
+            variant="secondary"
+            size="sm"
+            icon="sparkles"
+            onClick={() => setBatchOpen(true)}
+            disabled={!scene}
+            title="Queue a Cycles render of every room + floor overviews — runs in the background"
+          >
+            Render all
+          </Button>
+        )}
 
         <span className="mx-0.5 h-[26px] w-px bg-line" />
 
@@ -221,8 +237,9 @@ export function BottomBar() {
           icon="share"
           title="Download a self-contained interactive 3D viewer (single HTML file) to send to your client"
           onClick={() => {
+            const brand = studioName.trim();
             const a = document.createElement('a');
-            a.href = `/api/scenes/${projectId}/viewer`;
+            a.href = `/api/scenes/${projectId}/viewer${brand ? `?brand=${encodeURIComponent(brand)}` : ''}`;
             a.download = '';
             a.click();
           }}
@@ -244,6 +261,7 @@ export function BottomBar() {
           Export
         </Button>
       </div>
+      <BatchRenderDialog open={batchOpen} onClose={() => setBatchOpen(false)} projectId={projectId} />
     </div>
   );
 }

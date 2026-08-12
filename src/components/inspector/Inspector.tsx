@@ -38,6 +38,11 @@ function RoomExtras({ scene, room }: { scene: HomeScene; room: Room }) {
   }, []);
   const locked = lockedEntityIds(scene).has(room.id);
 
+  const addMaterial = (m: Omit<Material, 'id'>): string | null => {
+    const id = `mat-custom-${Date.now().toString(36)}`;
+    return applyPatch(makePatch(`Add material ${m.name}`, [{ type: 'add_material', material: { ...m, id } }])) ? id : null;
+  };
+
   const setRoomWalls = (mk: (wallId: string, side: 'sideA' | 'sideB') => PatchOp) => {
     const ops: PatchOp[] = [];
     for (const wid of room.wallIds) {
@@ -115,6 +120,7 @@ function RoomExtras({ scene, room }: { scene: HomeScene; room: Room }) {
   return (
     <>
       <MaterialSelect
+        onAddMaterial={addMaterial}
         scene={scene}
         label="Wall material (whole room)"
         value={wallValue}
@@ -229,17 +235,176 @@ function darken(hex: string, amt: number): string {
  * material's base colour); the active one gets the accent ring. Same props as the
  * old select, so every call site is unchanged.
  */
+/** A custom swatch saved to the cross-project personal library (localStorage). */
+interface LibrarySwatch {
+  name: string;
+  category: Material['category'];
+  baseColor: string;
+  roughness: number;
+}
+
+const LIBRARY_KEY = 'hc-material-library';
+function readLibrary(): LibrarySwatch[] {
+  try {
+    return JSON.parse(localStorage.getItem(LIBRARY_KEY) ?? '[]') as LibrarySwatch[];
+  } catch {
+    return [];
+  }
+}
+function writeLibrary(items: LibrarySwatch[]) {
+  try {
+    localStorage.setItem(LIBRARY_KEY, JSON.stringify(items.slice(0, 40)));
+  } catch {
+    /* private mode — library just doesn't persist */
+  }
+}
+
+const CUSTOM_CATEGORIES: Material['category'][] = ['paint', 'wood', 'marble', 'ceramicTile', 'stone', 'fabric', 'metal', 'other'];
+
+/**
+ * Add-material dialog: name + brand code, category, colour, roughness — with a
+ * personal library (Asian Paints codes and the like) that persists across
+ * projects. Applies a real add_material patch, so the swatch is undoable and
+ * travels with the scene.
+ */
+function AddMaterialDialog({
+  open,
+  onClose,
+  onCreate,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onCreate: (m: Omit<Material, 'id'>) => void;
+}) {
+  const [name, setName] = useState('');
+  const [category, setCategory] = useState<Material['category']>('paint');
+  const [color, setColor] = useState('#c8b89a');
+  const [roughness, setRoughness] = useState(0.85);
+  const [saveToLibrary, setSaveToLibrary] = useState(true);
+  const [library, setLibrary] = useState<LibrarySwatch[]>(() => readLibrary());
+  if (!open) return null;
+
+  const create = (m: LibrarySwatch) => {
+    if (saveToLibrary && !library.some((l) => l.name === m.name && l.baseColor === m.baseColor)) {
+      const next = [m, ...library];
+      setLibrary(next);
+      writeLibrary(next);
+    }
+    onCreate({
+      name: m.name,
+      category: m.category,
+      baseColor: m.baseColor,
+      pbr: { roughness: m.roughness, metallic: 0, repeatScale: 600 },
+      styleTags: ['custom'],
+      sourceReference: 'custom:user',
+    });
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-2xl border border-line bg-panel p-5 hc-card" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-[15px] font-bold">Add a material</h3>
+        <p className="mt-1 text-[12px] text-faint">Name it like you spec it — brand + code works well.</p>
+        <label className="mt-4 block text-xs text-dim">
+          Name
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Asian Paints 8547 Ivory Coast"
+            className="mt-1 w-full rounded-[9px] border border-line bg-field px-2.5 py-2 text-sm text-ink outline-none focus:border-accent/60"
+          />
+        </label>
+        <div className="mt-3 flex gap-2.5">
+          <label className="flex-1 text-xs text-dim">
+            Category
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value as Material['category'])}
+              className="mt-1 w-full rounded-[9px] border border-line bg-field px-2 py-2 text-sm text-ink"
+            >
+              {CUSTOM_CATEGORIES.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </label>
+          <label className="text-xs text-dim">
+            Colour
+            <input
+              type="color"
+              value={color}
+              onChange={(e) => setColor(e.target.value)}
+              className="mt-1 block h-9 w-16 cursor-pointer rounded-[9px] border border-line bg-transparent"
+            />
+          </label>
+        </div>
+        <div className="mt-3">
+          <div className="flex justify-between text-xs text-dim">
+            <span>Finish (matte → gloss)</span>
+            <Mono className="text-ink">{(1 - roughness).toFixed(2)}</Mono>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={1 - roughness}
+            onChange={(e) => setRoughness(1 - Number(e.target.value))}
+            className="mt-1 w-full accent-[#4b46e5]"
+          />
+        </div>
+        <label className="mt-3 flex items-center gap-2 text-xs text-dim">
+          <input type="checkbox" checked={saveToLibrary} onChange={(e) => setSaveToLibrary(e.target.checked)} />
+          Save to my library (available in every project)
+        </label>
+        {library.length > 0 && (
+          <div className="mt-4">
+            <SectionLabel>My library</SectionLabel>
+            <div className="mt-2 grid grid-cols-8 gap-1.5">
+              {library.map((l, i) => (
+                <button
+                  key={`${l.name}-${i}`}
+                  type="button"
+                  title={`${l.name} — add to this project`}
+                  onClick={() => create(l)}
+                  className="aspect-square rounded-[7px] ring-1 ring-black/5 transition hover:scale-[1.08]"
+                  style={{ background: `linear-gradient(135deg, ${l.baseColor}, ${darken(l.baseColor, 0.22)})` }}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+        <div className="mt-5 flex justify-end gap-2">
+          <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={!name.trim()}
+            onClick={() => create({ name: name.trim(), category, baseColor: color, roughness })}
+          >
+            Add material
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MaterialSelect({
   scene,
   value,
   onChange,
   label,
+  onAddMaterial,
 }: {
   scene: HomeScene;
   value: string;
   onChange: (materialId: string) => void;
   label: string;
+  /** When provided, the grid gets a "+" swatch that opens the add-material dialog. */
+  onAddMaterial?: (m: Omit<Material, 'id'>) => string | null;
 }) {
+  const [adding, setAdding] = useState(false);
   const sorted = [...scene.materials].sort((a, b) => a.name.localeCompare(b.name));
   const selected = sorted.find((m) => m.id === value);
   return (
@@ -260,8 +425,28 @@ function MaterialSelect({
             style={{ background: `linear-gradient(135deg, ${m.baseColor}, ${darken(m.baseColor, 0.22)})` }}
           />
         ))}
+        {onAddMaterial && (
+          <button
+            type="button"
+            title="Add a custom material"
+            onClick={() => setAdding(true)}
+            className={`flex aspect-square items-center justify-center rounded-[9px] border border-dashed border-[#cdd2dc] bg-soft-2 text-[16px] text-faint transition hover:border-accent/50 hover:text-accent ${FOCUS_RING}`}
+          >
+            +
+          </button>
+        )}
       </div>
       {selected && <Mono className="mt-2 block text-[11.5px] text-dim">{selected.name}</Mono>}
+      {onAddMaterial && (
+        <AddMaterialDialog
+          open={adding}
+          onClose={() => setAdding(false)}
+          onCreate={(m) => {
+            const id = onAddMaterial(m);
+            if (id) onChange(id);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -365,6 +550,11 @@ export function Inspector() {
   const selection = useEditor((s) => s.selection);
   const applyPatch = useEditor((s) => s.applyPatch);
 
+  const addMaterial = (m: Omit<Material, 'id'>): string | null => {
+    const id = `mat-custom-${Date.now().toString(36)}`;
+    return applyPatch(makePatch(`Add material ${m.name}`, [{ type: 'add_material', material: { ...m, id } }])) ? id : null;
+  };
+
   if (!scene) return null;
   if (!selection) {
     return (
@@ -399,6 +589,7 @@ export function Inspector() {
           {header(found.entity.name, `${found.entity.kind} · ${(polygonArea(found.entity.boundary.outer) / 1e6).toFixed(1)} m²${found.entity.openToSky ? ' · open to sky' : ''}`)}
           <RoomNameEditor room={found.entity} onPatch={(p) => applyPatch(p)} />
           <MaterialSelect
+        onAddMaterial={addMaterial}
             scene={scene}
             label="Floor material"
             value={found.entity.floorSurface.materialId}
@@ -412,6 +603,7 @@ export function Inspector() {
           />
           {found.entity.ceilingSurface && (
             <MaterialSelect
+        onAddMaterial={addMaterial}
               scene={scene}
               label="Ceiling material"
               value={found.entity.ceilingSurface.materialId}
@@ -446,6 +638,7 @@ export function Inspector() {
         <>
           {header('Wall', `${mmToDisplay(found.entity.thickness, 'metric')} thick · ${mmToDisplay(found.entity.height, 'metric')} high`)}
           <MaterialSelect
+        onAddMaterial={addMaterial}
             scene={scene}
             label="Side A material"
             value={found.entity.materialIds.sideA}
@@ -458,6 +651,7 @@ export function Inspector() {
             }
           />
           <MaterialSelect
+        onAddMaterial={addMaterial}
             scene={scene}
             label="Side B material"
             value={found.entity.materialIds.sideB}
@@ -498,6 +692,7 @@ export function Inspector() {
           {header(found.entity.name, `${found.entity.category} · ${mmToDisplay(found.entity.dimensions.w, 'metric')} × ${mmToDisplay(found.entity.dimensions.d, 'metric')}`)}
           {found.entity.materialIds.map((mid, i) => (
             <MaterialSelect
+        onAddMaterial={addMaterial}
               key={i}
               scene={scene}
               label={i === 0 ? 'Primary material' : `Material ${i + 1}`}

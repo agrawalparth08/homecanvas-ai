@@ -18,6 +18,7 @@ import {
 import { Button } from '../components/ui/Button';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Icon, type IconName } from '../components/ui/Icon';
+import { ProfileDialog } from '../components/ui/ProfileDialog';
 import { Chip, FOCUS_RING, Mono, SectionLabel, Segmented } from '../components/ui/primitives';
 import { reportError } from '../store/error-store';
 
@@ -99,6 +100,32 @@ function readRecentIds(): string[] {
     return (JSON.parse(localStorage.getItem('hc-recent') ?? '[]') as { id: string }[]).map((r) => r.id);
   } catch {
     return [];
+  }
+}
+
+/** Dismissible "Get started" checklist state — the two steps that can't be
+ *  auto-detected (restyle, share) are hand-marked done on click; the other two
+ *  derive from live project data so they can't go stale. */
+interface OnboardingState {
+  dismissed: boolean;
+  steps: { restyle: boolean; share: boolean };
+}
+function readOnboarding(): OnboardingState {
+  try {
+    const raw = JSON.parse(localStorage.getItem('hc-onboarding') ?? 'null') as Partial<OnboardingState> | null;
+    return {
+      dismissed: !!raw?.dismissed,
+      steps: { restyle: !!raw?.steps?.restyle, share: !!raw?.steps?.share },
+    };
+  } catch {
+    return { dismissed: false, steps: { restyle: false, share: false } };
+  }
+}
+function writeOnboarding(state: OnboardingState) {
+  try {
+    localStorage.setItem('hc-onboarding', JSON.stringify(state));
+  } catch {
+    /* private mode / quota — checklist just won't persist across reloads */
   }
 }
 
@@ -370,6 +397,75 @@ function CreateProjectDialog({
   );
 }
 
+interface OnboardingStepDef {
+  key: string;
+  label: string;
+  done: boolean;
+  /** Route to deep-link to. Omit for a step that opens a dialog instead. */
+  to?: string;
+  hint?: string;
+  onClick?: () => void;
+}
+
+/** "Get started" checklist card — bg-wash/border-wash-line, accent sparkles icon,
+ *  a mono N/M progress readout, and a dismiss control. Each row is a deep link
+ *  (or a button for the one step that opens a dialog) with an ok-tint check when done. */
+function OnboardingChecklist({ steps, onDismiss }: { steps: OnboardingStepDef[]; onDismiss: () => void }) {
+  const done = steps.filter((s) => s.done).length;
+  return (
+    <div className="mb-5 flex items-start gap-3 rounded-xl border border-wash-line bg-wash p-4">
+      <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] bg-accent text-white">
+        <Icon name="sparkles" className="text-[16px]" strokeWidth={1.9} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-[14px] font-bold text-ink">Get started</span>
+          <div className="flex flex-shrink-0 items-center gap-2.5">
+            <Mono className="text-[11.5px] font-semibold text-accent">
+              {done}/{steps.length}
+            </Mono>
+            <button
+              type="button"
+              aria-label="Dismiss checklist"
+              onClick={onDismiss}
+              className={`flex h-6 w-6 items-center justify-center rounded-[6px] text-faint transition hover:bg-panel hover:text-dim ${FOCUS_RING}`}
+            >
+              <Icon name="close" className="text-[13px]" />
+            </button>
+          </div>
+        </div>
+        <div className="mt-2.5 flex flex-col gap-1">
+          {steps.map((s) => {
+            const rowClass = `flex items-center gap-2.5 rounded-[8px] px-2 py-1.5 text-left text-[13px] transition hover:bg-panel/60 ${FOCUS_RING}`;
+            const inner = (
+              <>
+                <span
+                  className={`flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-full ${
+                    s.done ? 'bg-[#e9f6ef] text-ok' : 'border border-line bg-panel text-transparent'
+                  }`}
+                >
+                  <Icon name="check" className="text-[10px]" strokeWidth={2.6} />
+                </span>
+                <span className={s.done ? 'text-dim' : 'font-semibold text-ink'}>{s.label}</span>
+                {!s.done && s.hint && <span className="hidden text-[12px] text-faint sm:inline">— {s.hint}</span>}
+              </>
+            );
+            return s.to ? (
+              <Link key={s.key} to={s.to} onClick={s.onClick} className={rowClass}>
+                {inner}
+              </Link>
+            ) : (
+              <button key={s.key} type="button" onClick={s.onClick} className={rowClass}>
+                {inner}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function HomePage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -392,6 +488,8 @@ export function HomePage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [onboarding, setOnboarding] = useState<OnboardingState>(() => readOnboarding());
 
   // On completion, refresh what the download actually changed.
   useEffect(() => {
@@ -403,6 +501,52 @@ export function HomePage() {
 
   const projectViews: Project[] = useMemo(() => projects.map((m, i) => toProject(m, i)), [projects]);
   const sampleProject = projectViews.find((p) => p.kind === 'sample');
+
+  const markOnboardingStep = (key: 'restyle' | 'share') => {
+    setOnboarding((cur) => {
+      if (cur.steps[key]) return cur;
+      const next: OnboardingState = { ...cur, steps: { ...cur.steps, [key]: true } };
+      writeOnboarding(next);
+      return next;
+    });
+  };
+  const dismissOnboarding = () => {
+    setOnboarding((cur) => {
+      const next: OnboardingState = { ...cur, dismissed: true };
+      writeOnboarding(next);
+      return next;
+    });
+  };
+  const onboardingSteps: OnboardingStepDef[] = [
+    {
+      key: 'create',
+      label: 'Create your first client project',
+      done: projectViews.some((p) => !isBuiltInProject(p.id)),
+      onClick: () => setCreateOpen(true),
+    },
+    {
+      key: 'trace',
+      label: 'Trace a floor plan',
+      done: projectViews.some((p) => p.kind !== 'sample' && p.hasScene),
+      to: '/upload',
+    },
+    {
+      key: 'restyle',
+      label: 'Restyle a room',
+      done: onboarding.steps.restyle,
+      to: '/design/sample-home',
+      onClick: () => markOnboardingStep('restyle'),
+    },
+    {
+      key: 'share',
+      label: 'Send a client viewer',
+      done: onboarding.steps.share,
+      to: '/design/sample-home',
+      hint: 'Use Share in the canvas toolbar once you’re in',
+      onClick: () => markOnboardingStep('share'),
+    },
+  ];
+  const onboardingComplete = onboardingSteps.every((s) => s.done);
 
   const onOpen = (id: string) => {
     recordOpen(id);
@@ -548,6 +692,15 @@ export function HomePage() {
         </div>
         <button
           type="button"
+          onClick={() => setProfileOpen(true)}
+          aria-label="Designer profile"
+          title="Designer profile"
+          className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] border border-line bg-panel text-dim transition hover:bg-soft hover:text-ink ${FOCUS_RING}`}
+        >
+          <Icon name="user" className="text-[16px]" strokeWidth={1.8} />
+        </button>
+        <button
+          type="button"
           onClick={() => setCreateOpen(true)}
           className="inline-flex items-center gap-2 rounded-[10px] bg-accent px-4 py-2.5 text-[14px] font-semibold text-white hc-glow transition hover:bg-[#403bd6]"
         >
@@ -621,6 +774,11 @@ export function HomePage() {
               />
             )}
           </div>
+
+          {/* GET STARTED — dismissible onboarding checklist, All view only, while incomplete */}
+          {view === 'all' && !onboarding.dismissed && !onboardingComplete && (
+            <OnboardingChecklist steps={onboardingSteps} onDismiss={dismissOnboarding} />
+          )}
 
           {/* ALL */}
           {view === 'all' && (
@@ -763,6 +921,7 @@ export function HomePage() {
       />
 
       <CreateProjectDialog open={createOpen} creating={creating} onCreate={(n, k) => void onCreateProject(n, k)} onCancel={() => setCreateOpen(false)} />
+      <ProfileDialog open={profileOpen} onClose={() => setProfileOpen(false)} />
     </div>
   );
 }

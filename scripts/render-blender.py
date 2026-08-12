@@ -241,7 +241,10 @@ def main():
     sun.rotation_euler = (math.radians(50), math.radians(20), math.radians(40))
     bpy.context.collection.objects.link(sun)
 
-    # --- auto-framed camera (3/4 view of the scene bounds) ---
+    # --- camera: explicit (--cam/--target "x,y,z" in Blender world meters,
+    # z-up) for per-room batch renders, else auto-framed 3/4 view of bounds ---
+    cam_arg = arg("--cam")
+    target_arg = arg("--target")
     big = 1e9
     minv = mathutils.Vector((big, big, big))
     maxv = mathutils.Vector((-big, -big, -big))
@@ -255,8 +258,24 @@ def main():
     span = max((maxv - minv).length, 1.0)
     cam_data = bpy.data.cameras.new("Camera")
     cam = bpy.data.objects.new("Camera", cam_data)
-    cam.location = (center.x + span * 0.45, center.y - span * 0.6, center.z + span * 0.55)
-    cam.rotation_euler = (center - cam.location).to_track_quat("-Z", "Y").to_euler()
+    if cam_arg and target_arg:
+        cx, cy, cz = (float(v) for v in cam_arg.split(","))
+        tx, ty, tz = (float(v) for v in target_arg.split(","))
+        cam.location = (cx, cy, cz)
+        look = mathutils.Vector((tx, ty, tz)) - cam.location
+        cam.rotation_euler = look.to_track_quat("-Z", "Y").to_euler()
+        cam_data.lens = 24  # wide interior lens for inside-the-room shots
+        # Interior shots are enclosed — the sun/world barely reaches them. Add a
+        # soft ceiling-height area light over the room centre so the shot reads.
+        fill_data = bpy.data.lights.new("InteriorFill", type="AREA")
+        fill_data.energy = 220.0
+        fill_data.size = 2.4
+        fill = bpy.data.objects.new("InteriorFill", fill_data)
+        fill.location = (tx, ty, tz + 1.5)
+        bpy.context.collection.objects.link(fill)
+    else:
+        cam.location = (center.x + span * 0.45, center.y - span * 0.6, center.z + span * 0.55)
+        cam.rotation_euler = (center - cam.location).to_track_quat("-Z", "Y").to_euler()
     bpy.context.collection.objects.link(cam)
     bpy.context.scene.camera = cam
 

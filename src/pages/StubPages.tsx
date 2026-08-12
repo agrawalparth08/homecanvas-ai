@@ -3,10 +3,14 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { polygonArea } from '@lib/geometry/rooms';
 import { buildRoomBoards } from '@lib/boards/room-boards';
+import { quantitiesToCsv } from '@lib/boq/csv';
 import { diffScenes } from '@lib/scene/diff';
-import type { VariantMeta } from '@lib/scene/schemas';
+import type { RoomBoard, VariantMeta } from '@lib/scene/schemas';
 import { useEditor } from '../store/editor-store';
+import { useProfile } from '../store/profile-store';
+import { Button } from '../components/ui/Button';
 import { Icon } from '../components/ui/Icon';
+import { ProfileDialog } from '../components/ui/ProfileDialog';
 import { Chip, FOCUS_RING, Mono, SectionLabel } from '../components/ui/primitives';
 
 function Stub({ title, phase, children }: { title: string; phase: string; children: React.ReactNode }) {
@@ -45,6 +49,38 @@ function DiffStat({ label, value, tone = 'neutral' }: { label: string; value: nu
   );
 }
 
+/** "diningTable" -> "Dining Table" (and "tvUnit" -> "TV Unit") for the printed
+ *  furniture schedule. */
+function formatCategory(category: string): string {
+  if (category === 'tvUnit') return 'TV Unit';
+  const spaced = category.replace(/([a-z0-9])([A-Z])/g, '$1 $2');
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+/** Collapse a room's furniture list into schedule rows (name + category -> count). */
+function scheduleRows(furniture: RoomBoard['furniture']): { name: string; category: string; count: number }[] {
+  const byKey = new Map<string, { name: string; category: string; count: number }>();
+  for (const f of furniture) {
+    const key = `${f.name}__${f.category}`;
+    const existing = byKey.get(key);
+    if (existing) existing.count += 1;
+    else byKey.set(key, { name: f.name, category: formatCategory(f.category), count: 1 });
+  }
+  return [...byKey.values()];
+}
+
+/** print: A4 page size, backgrounds forced white (the app's h-screen/overflow
+ *  scroll regions are print:hidden entirely, so pagination flows normally
+ *  through the print-only block below), and swatches told to actually print
+ *  their fill colour (browsers skip background-color by default). */
+const PRINT_STYLE = `
+@media print {
+  @page { size: A4; margin: 14mm; }
+  html, body { background: #fff !important; height: auto !important; }
+  .hc-print-swatch { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+`;
+
 export function VariantsPage() {
   const scene = useEditor((s) => s.scene);
   const baseline = useEditor((s) => s.baseline);
@@ -81,8 +117,14 @@ export function VariantsPage() {
     },
   });
 
+  const [profileOpen, setProfileOpen] = useState(false);
+  const studioName = useProfile((s) => s.studioName);
+  const contact = useProfile((s) => s.contact);
+  const logoDataUrl = useProfile((s) => s.logoDataUrl);
+
+  // print-hide: app chrome that has no place in the exported PDF.
   const header = (
-    <header className="flex h-[54px] flex-shrink-0 items-center gap-3.5 border-b border-line bg-panel px-[18px]">
+    <header className="flex h-[54px] flex-shrink-0 items-center gap-3.5 border-b border-line bg-panel px-[18px] print:hidden">
       <Link
         to={`/design/${projectId}`}
         className="inline-flex flex-shrink-0 items-center gap-2 text-[16px] font-bold tracking-[-0.3px] text-accent"
@@ -95,12 +137,41 @@ export function VariantsPage() {
       <span className="hidden h-[22px] w-px flex-shrink-0 bg-line sm:block" />
       <h1 className="text-[14px] font-semibold text-ink">Boards</h1>
       {scene && <span className="truncate text-[13px] text-dim">{scene.name}</span>}
-      <Link
-        to={`/design/${projectId}`}
-        className={`ml-auto inline-flex flex-shrink-0 items-center gap-1.5 rounded-[9px] border border-line bg-panel px-3 py-[7px] text-[13px] font-semibold text-dim transition hover:bg-soft ${FOCUS_RING}`}
-      >
-        <Icon name="chevronLeft" className="text-[14px]" strokeWidth={2} /> <span className="hidden md:inline">Back to canvas</span>
-      </Link>
+      <span className="ml-auto flex flex-shrink-0 items-center gap-2">
+        <Button variant="ghost" size="sm" icon="user" onClick={() => setProfileOpen(true)}>
+          Brand
+        </Button>
+        {scene && (
+          <Button
+            variant="secondary"
+            size="sm"
+            icon="columns"
+            title="Download a bill-of-quantities CSV (areas from the scene, rates left for you)"
+            onClick={() => {
+              const csv = quantitiesToCsv(scene);
+              const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `${(scene.name || 'home').replace(/[^a-zA-Z0-9-_ ]/g, '').trim().replace(/\s+/g, '-').toLowerCase()}-boq.csv`;
+              a.click();
+              setTimeout(() => URL.revokeObjectURL(url), 5000);
+            }}
+          >
+            Export BOQ
+          </Button>
+        )}
+        {scene && (
+          <Button variant="dark" size="sm" icon="save" onClick={() => window.print()} title="Export the boards as a branded PDF">
+            Export PDF
+          </Button>
+        )}
+        <Link
+          to={`/design/${projectId}`}
+          className={`inline-flex flex-shrink-0 items-center gap-1.5 rounded-[9px] border border-line bg-panel px-3 py-[7px] text-[13px] font-semibold text-dim transition hover:bg-soft ${FOCUS_RING}`}
+        >
+          <Icon name="chevronLeft" className="text-[14px]" strokeWidth={2} /> <span className="hidden md:inline">Back to canvas</span>
+        </Link>
+      </span>
     </header>
   );
 
@@ -131,6 +202,7 @@ export function VariantsPage() {
             </p>
           )}
         </div>
+        <ProfileDialog open={profileOpen} onClose={() => setProfileOpen(false)} />
       </div>
     );
   }
@@ -144,9 +216,10 @@ export function VariantsPage() {
   const variants = variantsQuery.data ?? [];
 
   return (
-    <div className="flex h-screen flex-col bg-app text-ink">
+    <div className="flex h-screen flex-col bg-app text-ink print:h-auto">
+      <style>{PRINT_STYLE}</style>
       {header}
-      <div className="min-h-0 flex-1 overflow-y-auto px-8 py-8">
+      <div className="min-h-0 flex-1 overflow-y-auto px-8 py-8 print:hidden">
         <div className="mx-auto max-w-6xl space-y-10">
           <section>
             <SectionLabel>Variants</SectionLabel>
@@ -261,6 +334,91 @@ export function VariantsPage() {
           </section>
         </div>
       </div>
+
+      {/* print-only export: cover + per-room boards with a real furniture-schedule
+          table, hidden on screen (Tailwind's `hidden`) and shown only for print. */}
+      <div className="hidden print:block">
+        <div className="mb-8 flex items-start justify-between gap-4 border-b-2 border-ink pb-4">
+          <div className="flex items-center gap-3">
+            {logoDataUrl && (
+              <img src={logoDataUrl} alt="" className="hc-print-swatch h-12 w-12 flex-shrink-0 object-contain" />
+            )}
+            <div>
+              <p className="text-[15px] font-bold text-ink">{studioName || 'HomeCanvas AI'}</p>
+              {contact && <p className="text-[11px] text-dim">{contact}</p>}
+            </div>
+          </div>
+          <Mono className="flex-shrink-0 text-[11px] text-dim">
+            {new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+          </Mono>
+        </div>
+        <h1 className="text-[22px] font-extrabold text-ink">Design boards</h1>
+        <p className="text-[13px] text-dim">{scene.name}</p>
+
+        <div className="mt-6 flex flex-col gap-5">
+          {boards.map((b) => (
+            <div key={b.roomId} className="break-inside-avoid rounded-[10px] border border-line p-4">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-[14px] font-bold text-ink">{b.name}</h3>
+                <Mono className="text-[12px] text-dim">{(roomAreaM2.get(b.roomId) ?? 0).toFixed(1)} m²</Mono>
+              </div>
+
+              {b.palette.length > 0 && (
+                <div className="mt-2.5 flex gap-1.5">
+                  {b.palette.map((hex) => (
+                    <span
+                      key={hex}
+                      title={hex}
+                      className="hc-print-swatch h-5 w-5 rounded-[4px] ring-1 ring-black/15"
+                      style={{ background: hex }}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {b.furniture.length > 0 ? (
+                <table className="mt-3 w-full border-collapse text-[11.5px]">
+                  <thead>
+                    <tr>
+                      <th className="border border-line bg-soft px-2 py-1 text-left font-semibold text-dim">Piece</th>
+                      <th className="border border-line bg-soft px-2 py-1 text-left font-semibold text-dim">Category</th>
+                      <th className="border border-line bg-soft px-2 py-1 text-right font-semibold text-dim">Count</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {scheduleRows(b.furniture).map((row) => (
+                      <tr key={`${row.name}-${row.category}`}>
+                        <td className="border border-line px-2 py-1 text-ink">{row.name}</td>
+                        <td className="border border-line px-2 py-1 text-dim">{row.category}</td>
+                        <td className="border border-line px-2 py-1 text-right font-mono text-ink">{row.count}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <p className="mt-3 text-[11.5px] text-faint">No furniture placed.</p>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {hasChanges && diff && (
+          <div className="mt-5 break-inside-avoid rounded-[10px] border border-line p-4">
+            <h3 className="text-[13px] font-bold text-ink">Changes vs baseline</h3>
+            <ul className="mt-2 space-y-1 text-[12px] text-ink">
+              {diff.addedRoomIds.length > 0 && <li>{diff.addedRoomIds.length} room(s) added</li>}
+              {diff.removedRoomIds.length > 0 && <li>{diff.removedRoomIds.length} room(s) removed</li>}
+              {diff.changedRooms.length > 0 && <li>{diff.changedRooms.length} room(s) changed</li>}
+              {diff.recoloredRooms.length > 0 && <li>{diff.recoloredRooms.length} room(s) recoloured</li>}
+              {diff.addedObjectIds.length > 0 && <li>{diff.addedObjectIds.length} furniture piece(s) added</li>}
+              {diff.removedObjectIds.length > 0 && <li>{diff.removedObjectIds.length} furniture piece(s) removed</li>}
+              {diff.movedObjectIds.length > 0 && <li>{diff.movedObjectIds.length} furniture piece(s) moved</li>}
+            </ul>
+          </div>
+        )}
+      </div>
+
+      <ProfileDialog open={profileOpen} onClose={() => setProfileOpen(false)} />
     </div>
   );
 }

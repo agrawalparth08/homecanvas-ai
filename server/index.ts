@@ -12,6 +12,7 @@ import { bridgeEnabled, readResult, writeRequest } from './bridge';
 import { autoAnswer, bridgeAutoEnabled } from './bridge-auto';
 import { buildSceneExport } from './export';
 import { buildViewerHtml, viewerExportAvailable } from './viewer-export';
+import { batchFilePath, batchStatus, startBatch } from './render-batch';
 import { detectBlender, readRender, renderWithBlender } from './adapters/blender';
 import { cubicasaAvailable, runCubicasaSidecar } from './adapters/cubicasa';
 import { DesignVariantSchema, HomeSceneSchema } from '../lib/scene/schemas';
@@ -96,6 +97,29 @@ app.post('/api/render/blender', async (c) => {
   });
   if (!result.ok) return c.json({ error: result.reason }, 503);
   return c.body(await readRender(result.pngPath), 200, { 'Content-Type': 'image/png', 'Cache-Control': 'no-store' });
+});
+
+// Batch render queue — every room + floor overviews through Blender Cycles.
+app.post('/api/render/batch', async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as { projectId?: string; samples?: number };
+  const projectId = body.projectId ?? '';
+  if (!isProjectId(projectId)) return c.json({ error: 'unknown project' }, 404);
+  const scene = await loadScene(projectId).catch(() => null);
+  if (!scene) return c.json({ error: 'no scene to render' }, 404);
+  const started = startBatch(scene, projectId, typeof body.samples === 'number' ? { samples: body.samples } : {});
+  if (!started.ok) return c.json({ error: started.reason }, started.code as 400);
+  return c.json({ ok: true, total: started.total });
+});
+
+app.get('/api/render/batch/status', (c) => c.json(batchStatus()));
+
+app.get('/api/render/batch/file/:name', async (c) => {
+  const file = batchFilePath(c.req.param('name'));
+  if (!file) return c.json({ error: 'not found' }, 404);
+  return c.body(new Uint8Array(await readFile(file)), 200, {
+    'Content-Type': 'image/png',
+    'Content-Disposition': `attachment; filename="${c.req.param('name')}"`,
+  });
 });
 
 // Optional CubiCasa5k extraction booster (gitignored, user-converted model + onnxruntime).

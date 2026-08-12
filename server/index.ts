@@ -28,6 +28,7 @@ import {
   createProject,
   duplicateProject,
   isProjectId,
+  isSafeVariantId,
   listProjects,
   listVariants,
   loadScene,
@@ -92,11 +93,19 @@ app.post('/api/render/blender', async (c) => {
     | null;
   const parsed = HomeSceneSchema.safeParse(body?.scene);
   if (!parsed.success) return c.json({ error: 'invalid scene' }, 400);
+  // Only accept an hdri that resolves inside ASSET_CACHE/hdris — a raw path from
+  // the body would let a caller point Blender at any file on disk (existence
+  // probing / arbitrary reads).
+  let hdri: string | undefined;
+  if (typeof body?.hdri === 'string') {
+    const resolved = path.resolve(ASSET_CACHE, 'hdris', path.basename(body.hdri));
+    if (existsSync(resolved)) hdri = resolved;
+  }
   const result = await renderWithBlender(parsed.data, {
-    samples: typeof body?.samples === 'number' ? body.samples : 128,
+    samples: typeof body?.samples === 'number' ? Math.round(Math.max(8, Math.min(4096, body.samples))) : 128,
     res: typeof body?.res === 'string' ? body.res : '1280x800',
     gpu: body?.gpu === true,
-    ...(typeof body?.hdri === 'string' ? { hdri: body.hdri } : {}),
+    ...(hdri ? { hdri } : {}),
   });
   if (!result.ok) return c.json({ error: result.reason }, 503);
   return c.body(await readRender(result.pngPath), 200, { 'Content-Type': 'image/png', 'Cache-Control': 'no-store' });
@@ -151,7 +160,13 @@ app.post('/api/render/batch', async (c) => {
   if (!isProjectId(projectId)) return c.json({ error: 'unknown project' }, 404);
   const scene = await loadScene(projectId).catch(() => null);
   if (!scene) return c.json({ error: 'no scene to render' }, 404);
-  const started = startBatch(scene, projectId, typeof body.samples === 'number' ? { samples: body.samples } : {});
+  // Clamp samples: an unbounded value pins the GPU for hours; 0/negative/NaN
+  // makes Cycles error every job.
+  const samples =
+    typeof body.samples === 'number' && Number.isFinite(body.samples)
+      ? Math.round(Math.max(8, Math.min(4096, body.samples)))
+      : undefined;
+  const started = startBatch(scene, projectId, typeof samples === 'number' ? { samples } : {});
   if (!started.ok) return c.json({ error: started.reason }, started.code as 400);
   return c.json({ ok: true, total: started.total });
 });
@@ -199,8 +214,11 @@ app.get('/api/private-home/file/*', async (c) => {
   const rel = decodeURIComponent(c.req.path.replace('/api/private-home/file/', ''));
   const resolved = resolvePrivateFile(rel);
   if (!resolved || !existsSync(resolved)) return c.json({ error: 'not found' }, 404);
-  const data = await readFile(resolved);
   const ext = path.extname(resolved).toLowerCase();
+  // Allowlist: this route exists only to display plan images/PDFs. Never let it
+  // stream arbitrary bytes (keys, JSON, models) even from inside PRIVATE_ROOT.
+  if (!['.pdf', '.png', '.jpg', '.jpeg', '.webp'].includes(ext)) return c.json({ error: 'not found' }, 404);
+  const data = await readFile(resolved);
   const type =
     ext === '.pdf'
       ? 'application/pdf'
@@ -401,6 +419,9 @@ app.post('/api/variants/:projectId', async (c) => {
   if (!parsed.success) return c.json({ error: 'invalid variant', detail: parsed.error.message }, 400);
   if (parsed.data.meta.projectId !== projectId) {
     return c.json({ error: 'variant projectId mismatch' }, 400);
+  }
+  if (!isSafeVariantId(parsed.data.meta.id)) {
+    return c.json({ error: 'unsafe variant id' }, 400);
   }
   await saveVariant(projectId, parsed.data);
   return c.json({ ok: true, id: parsed.data.meta.id });

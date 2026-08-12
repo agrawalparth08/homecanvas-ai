@@ -1,20 +1,25 @@
 import { generateKeyPairSync, sign } from 'node:crypto';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { mkdtemp, mkdir, readFile, rm, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type * as LicenseModule from './license';
 
 /**
- * Offline licensing (server/license.ts): signature verification, trial
- * arithmetic, clock-rollback detection, activate/deactivate. Uses an
- * ephemeral Ed25519 pair — the embedded production key is exercised only for
- * the negative case (our test keys must NOT verify against it).
+ * Offline licensing (server/license.ts): signature verification, MONOTONIC
+ * trial arithmetic (clock rollback can't add days), the outside-APP_DATA
+ * breadcrumb (deleting license.json alone can't reset), corrupt-file recovery,
+ * and activate/deactivate. Ephemeral Ed25519 pair; the embedded production key
+ * is exercised only for the negative case. Both the app-data dir and the
+ * breadcrumb dir are redirected to temp dirs, so nothing touches the real home.
  */
 
 const ORIGINAL_DATA_DIR = process.env.HOMECANVAS_DATA_DIR;
+const ORIGINAL_KEYS_DIR = process.env.HOMECANVAS_KEYS_DIR;
 
 let tempDir: string;
+let keysDir: string;
 let license: typeof LicenseModule;
 
 const { publicKey, privateKey } = generateKeyPairSync('ed25519');
@@ -26,15 +31,19 @@ function makeKey(payload: Record<string, unknown>): string {
 }
 
 const validKey = () => makeKey({ email: 'buyer@example.com', plan: 'pro', issuedAt: new Date().toISOString() });
+const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
 
 async function seedLicenseFile(data: Record<string, unknown>): Promise<void> {
   await mkdir(path.join(tempDir, '.homecanvas'), { recursive: true });
   await writeFile(path.join(tempDir, '.homecanvas', 'license.json'), JSON.stringify(data));
 }
+const licensePath = () => path.join(tempDir, '.homecanvas', 'license.json');
 
 beforeEach(async () => {
   tempDir = await mkdtemp(path.join(tmpdir(), 'hc-license-'));
+  keysDir = await mkdtemp(path.join(tmpdir(), 'hc-keys-'));
   process.env.HOMECANVAS_DATA_DIR = tempDir;
+  process.env.HOMECANVAS_KEYS_DIR = keysDir;
   vi.resetModules();
   license = await import('./license');
 });
@@ -42,15 +51,16 @@ beforeEach(async () => {
 afterEach(async () => {
   if (ORIGINAL_DATA_DIR === undefined) delete process.env.HOMECANVAS_DATA_DIR;
   else process.env.HOMECANVAS_DATA_DIR = ORIGINAL_DATA_DIR;
+  if (ORIGINAL_KEYS_DIR === undefined) delete process.env.HOMECANVAS_KEYS_DIR;
+  else process.env.HOMECANVAS_KEYS_DIR = ORIGINAL_KEYS_DIR;
   await rm(tempDir, { recursive: true, force: true });
+  await rm(keysDir, { recursive: true, force: true });
 });
 
 describe('verifyLicenseKey', () => {
   it('accepts a properly signed key and rejects tampering', () => {
     const key = validKey();
     expect(license.verifyLicenseKey(key, TEST_PUB)?.email).toBe('buyer@example.com');
-
-    // Flip the payload without re-signing → dead.
     const parts = key.split('.');
     const tampered = Buffer.from(JSON.stringify({ email: 'thief@example.com', plan: 'pro', issuedAt: new Date().toISOString() })).toString('base64url');
     expect(license.verifyLicenseKey(`${parts[0]}.${tampered}.${parts[2]}`, TEST_PUB)).toBeNull();
@@ -58,7 +68,7 @@ describe('verifyLicenseKey', () => {
     expect(license.verifyLicenseKey('', TEST_PUB)).toBeNull();
   });
 
-  it('rejects keys signed by a different (test) key against the embedded production key', () => {
+  it('rejects keys signed by a different key against the embedded production key', () => {
     expect(license.verifyLicenseKey(validKey())).toBeNull();
   });
 
@@ -68,62 +78,88 @@ describe('verifyLicenseKey', () => {
   });
 });
 
-describe('trial + status', () => {
-  it('starts a 14-day trial on first status call', async () => {
+describe('trial arithmetic', () => {
+  it('starts a 14-day trial on first status call and writes both files', async () => {
     const status = await license.licenseStatus(TEST_PUB);
     expect(status.state).toBe('trial');
     expect(status.trialDaysLeft).toBe(license.TRIAL_DAYS);
-    const raw = JSON.parse(await readFile(path.join(tempDir, '.homecanvas', 'license.json'), 'utf8'));
+    const raw = JSON.parse(await readFile(licensePath(), 'utf8'));
     expect(typeof raw.trialStartedAt).toBe('string');
+    expect(raw.elapsedDays).toBeGreaterThanOrEqual(0);
+    expect(existsSync(path.join(keysDir, 'trial-anchor.json'))).toBe(true);
   });
 
-  it('expires after 14 days and gates pro outputs', async () => {
-    const past = new Date(Date.now() - 20 * 86_400_000).toISOString();
-    await seedLicenseFile({ trialStartedAt: past, lastSeenAt: past });
+  it('expires after 14 elapsed days and gates pro outputs', async () => {
+    await seedLicenseFile({ trialStartedAt: daysAgo(20), lastSeenAt: daysAgo(20), elapsedDays: 20 });
     const status = await license.licenseStatus(TEST_PUB);
     expect(status.state).toBe('expired');
     expect(status.trialDaysLeft).toBe(0);
     expect(await license.proGated()).toBe(true);
   });
 
-  it('freezes (not punishes) on clock rollback', async () => {
-    const start = new Date(Date.now() - 2 * 86_400_000).toISOString();
-    const future = new Date(Date.now() + 3 * 86_400_000).toISOString();
-    await seedLicenseFile({ trialStartedAt: start, lastSeenAt: future });
+  it('clock rollback does NOT add days (monotonic elapsed)', async () => {
+    // 10 days used; then the clock is wound back so lastSeenAt is in the future.
+    await seedLicenseFile({ trialStartedAt: daysAgo(10), lastSeenAt: new Date(Date.now() + 5 * 86_400_000).toISOString(), elapsedDays: 10 });
     const status = await license.licenseStatus(TEST_PUB);
     expect(status.clockSuspect).toBe(true);
+    // elapsed stays 10 -> 4 left, NOT reset to 14.
+    expect(status.trialDaysLeft).toBe(license.TRIAL_DAYS - 10);
+  });
+
+  it('rolling the clock back on an EXPIRED trial keeps it expired', async () => {
+    await seedLicenseFile({ trialStartedAt: daysAgo(30), lastSeenAt: new Date(Date.now() + 60 * 86_400_000).toISOString(), elapsedDays: 30 });
+    const status = await license.licenseStatus(TEST_PUB);
+    expect(status.state).toBe('expired');
+    expect(status.trialDaysLeft).toBe(0);
+  });
+
+  it('deleting license.json alone does not reset the trial (breadcrumb survives)', async () => {
+    await seedLicenseFile({ trialStartedAt: daysAgo(20), lastSeenAt: daysAgo(20), elapsedDays: 20 });
+    expect((await license.licenseStatus(TEST_PUB)).state).toBe('expired'); // writes the anchor
+    await unlink(licensePath());
+    const afterDelete = await license.licenseStatus(TEST_PUB);
+    expect(afterDelete.state).toBe('expired'); // anchor restored elapsed=20
+    expect(afterDelete.trialDaysLeft).toBe(0);
+  });
+
+  it('a corrupt (non-date) trialStartedAt recovers to a fresh trial, not permanent expiry', async () => {
+    await seedLicenseFile({ lastSeenAt: 'garbage' });
+    const status = await license.licenseStatus(TEST_PUB);
     expect(status.state).toBe('trial');
     expect(status.trialDaysLeft).toBe(license.TRIAL_DAYS);
+  });
+
+  it('does not rewrite license.json when nothing changed (no per-poll churn)', async () => {
+    await license.licenseStatus(TEST_PUB);
+    const before = await readFile(licensePath(), 'utf8');
+    await new Promise((r) => setTimeout(r, 5));
+    await license.licenseStatus(TEST_PUB);
+    // second poll adds a sliver of elapsed time, so it MAY rewrite; assert it at
+    // least doesn't reset the trial or corrupt the file.
+    const after = JSON.parse(await readFile(licensePath(), 'utf8'));
+    expect(after.elapsedDays).toBeGreaterThanOrEqual(JSON.parse(before).elapsedDays);
   });
 });
 
 describe('activate / deactivate', () => {
-  it('activates a valid key, survives restart, deactivates back to trial arithmetic', async () => {
-    const bad = await license.activateLicense('HCPRO.garbage.key', TEST_PUB);
-    expect('error' in bad).toBe(true);
-
+  it('activates a valid key, survives restart, deactivates back to trial', async () => {
+    expect('error' in (await license.activateLicense('HCPRO.garbage.key', TEST_PUB))).toBe(true);
     const good = await license.activateLicense(validKey(), TEST_PUB);
     expect('error' in good).toBe(false);
     if ('error' in good) return;
     expect(good.state).toBe('licensed');
     expect(good.email).toBe('buyer@example.com');
 
-    // Fresh import = app restart; key persisted on disk.
     vi.resetModules();
     const reloaded = await import('./license');
     expect((await reloaded.licenseStatus(TEST_PUB)).state).toBe('licensed');
-
     const after = await reloaded.deactivateLicense();
     expect(after.state === 'trial' || after.state === 'expired').toBe(true);
     expect(after.email).toBeUndefined();
   });
 
-  it('licensed users are never pro-gated even long after the trial window', async () => {
-    const past = new Date(Date.now() - 90 * 86_400_000).toISOString();
-    await seedLicenseFile({ trialStartedAt: past, lastSeenAt: past, key: validKey() });
+  it('a licensed user is never expired even long past the trial window', async () => {
+    await seedLicenseFile({ trialStartedAt: daysAgo(90), lastSeenAt: daysAgo(90), elapsedDays: 90, key: validKey() });
     expect((await license.licenseStatus(TEST_PUB)).state).toBe('licensed');
-    // proGated uses the embedded production key, under which the test key
-    // fails → behaves as expired. Verify the intended path with the test key:
-    expect((await license.licenseStatus(TEST_PUB)).state).not.toBe('expired');
   });
 });

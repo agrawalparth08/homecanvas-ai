@@ -11,15 +11,12 @@
  */
 import { createPrivateKey, sign } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
-const KEY_PATH = path.resolve(
-  import.meta.dirname,
-  '..',
-  'private-home-inputs',
-  'license-keys',
-  'homecanvas-license-signing.pem',
-);
+// The signing key lives in ~/.homecanvas-keys/ — OUTSIDE the repo AND outside
+// the sidecar's DATA_ROOT, so it can never be served by /api/private-home/file.
+const KEY_PATH = path.join(os.homedir(), '.homecanvas-keys', 'homecanvas-license-signing.pem');
 
 function main(): void {
   const email = process.argv[2];

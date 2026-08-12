@@ -44,6 +44,25 @@ describe('isProjectId — path safety', () => {
   });
 });
 
+describe('isSafeVariantId — filename safety', () => {
+  it('accepts normal variant ids and rejects traversal', () => {
+    for (const ok of ['v-abc', 'V1', 'variant_2', 'a']) expect(storage.isSafeVariantId(ok)).toBe(true);
+    for (const bad of ['', '../../evil', 'a/b', 'a\\b', '.hidden', 'a'.repeat(65)]) {
+      expect(storage.isSafeVariantId(bad)).toBe(false);
+    }
+  });
+
+  it('saveVariant throws rather than writing a traversal path', async () => {
+    const project = await storage.createProject('Guard');
+    const scene = buildSampleHome();
+    const evil = {
+      meta: { schemaVersion: scene.schemaVersion, id: '../../../../pwned', projectId: project.id, name: 'x', styleTags: [], createdAt: new Date().toISOString() },
+      scene,
+    };
+    await expect(storage.saveVariant(project.id, evil as never)).rejects.toThrow(/unsafe variant id/);
+  });
+});
+
 describe('create / list / rename', () => {
   it('creates a project with meta and lists it alongside the sample built-in', async () => {
     const meta = await storage.createProject('Sharma Residence', 'apartment');

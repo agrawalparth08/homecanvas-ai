@@ -87,6 +87,10 @@ export async function importBundle(raw: unknown): Promise<ImportResult> {
 
   let imported = 0;
   let skipped = 0;
+  // Variant ids are filenames within the project; two variants sharing an id
+  // (hand-edited bundle, or "V1"/"v1" colliding on a case-insensitive FS) must
+  // not silently overwrite. Re-mint any id already taken this import.
+  const usedIds = new Set<string>();
   for (const rawVariant of envelope.data.variants ?? []) {
     const parsed = DesignVariantSchema.safeParse(rawVariant);
     if (!parsed.success) {
@@ -95,9 +99,10 @@ export async function importBundle(raw: unknown): Promise<ImportResult> {
     }
     const variant = parsed.data;
     variant.meta.projectId = project.id;
-    if (!SAFE_VARIANT_ID.test(variant.meta.id)) {
+    if (!SAFE_VARIANT_ID.test(variant.meta.id) || usedIds.has(variant.meta.id.toLowerCase())) {
       variant.meta.id = `v-${Date.now().toString(36)}${imported.toString(36)}`;
     }
+    usedIds.add(variant.meta.id.toLowerCase());
     await saveVariant(project.id, variant);
     imported += 1;
   }

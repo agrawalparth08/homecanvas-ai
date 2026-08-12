@@ -45,6 +45,14 @@ export function isProjectId(value: string): value is ProjectId {
   return PROJECT_ID_RE.test(value);
 }
 
+// Variant ids become filenames (`<id>.variant.json`). EntityId in the schema is
+// any non-empty string, so an id like "../../evil" would write outside the
+// variants dir — every write path must gate on this.
+const SAFE_ENTITY_FILE_ID = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
+export function isSafeVariantId(id: string): boolean {
+  return SAFE_ENTITY_FILE_ID.test(id);
+}
+
 export interface ProjectMeta {
   id: ProjectId;
   name: string;
@@ -299,5 +307,8 @@ export async function loadVariant(projectId: ProjectId, variantId: string): Prom
 }
 
 export async function saveVariant(projectId: ProjectId, variant: DesignVariant): Promise<void> {
+  // Guard the id BEFORE it reaches the filesystem — the schema permits ids that
+  // would traverse out of the variants dir.
+  if (!isSafeVariantId(variant.meta.id)) throw new Error(`unsafe variant id: ${variant.meta.id}`);
   await atomicWrite(variantFile(projectId, variant.meta.id), JSON.stringify(variant, null, 2));
 }

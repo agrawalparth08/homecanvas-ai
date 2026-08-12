@@ -86,10 +86,15 @@ function CameraRig({ scene }: { scene: HomeScene }) {
   const activeFloorId = useEditor((s) => s.activeFloorId);
   const camera = useThree((s) => s.camera);
 
-  // Only the active floor renders, at its stacked elevation — the orbit
-  // target must ride up with it or upper storeys (towers) frame off-screen.
+  // Only the active floor renders, at its stacked elevation — the orbit target
+  // must ride up with it or upper storeys (towers) frame off-screen. Guard on
+  // the floor actually existing in THIS scene: Before/After swaps in `baseline`,
+  // which may not have a floor the live scene just added — then elevation is 0.
   const floorY = useMemo(
-    () => (activeFloorId ? floorElevation(scene, activeFloorId) * MM : 0),
+    () =>
+      activeFloorId && scene.floors.some((f) => f.id === activeFloorId)
+        ? floorElevation(scene, activeFloorId) * MM
+        : 0,
     [scene, activeFloorId],
   );
 

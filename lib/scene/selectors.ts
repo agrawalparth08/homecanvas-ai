@@ -76,8 +76,14 @@ export function lockedEntityIds(scene: HomeScene): Set<EntityId> {
   return ids;
 }
 
-/** Elevation (mm) of a floor's slab top. v1: stacked uniform floor heights. */
+/**
+ * Elevation (mm) of a floor's slab top. v1: stacked uniform floor heights.
+ * Returns 0 for a floorId not in this scene — callers pass ids that may belong
+ * to a different scene (e.g. Before/After's baseline), and the whole-building
+ * height was a misleading fallback.
+ */
 export function floorElevation(scene: HomeScene, floorId: EntityId): number {
+  if (!scene.floors.some((f) => f.id === floorId)) return 0;
   const sorted = [...scene.floors].sort((a, b) => a.level - b.level);
   let elevation = 0;
   for (const f of sorted) {

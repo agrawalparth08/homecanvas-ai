@@ -8,6 +8,7 @@ import {
   type CamState,
   type WalkInput,
 } from '@lib/interaction/walk-camera';
+import { floorElevation } from '@lib/scene/selectors';
 import { useEditor } from '../../store/editor-store';
 
 const MM = 0.001;
@@ -69,8 +70,18 @@ interface WalkControlsProps {
 export function WalkControls({ tourPoses = [], start }: WalkControlsProps) {
   const viewMode = useEditor((s) => s.viewMode);
   const tourIndex = useEditor((s) => s.tourIndex);
+  const scene = useEditor((s) => s.scene);
+  const activeFloorId = useEditor((s) => s.activeFloorId);
   const camera = useThree((s) => s.camera);
   const gl = useThree((s) => s.gl);
+
+  // Geometry is drawn at the active floor's stacked elevation; the walker's eye
+  // must sit on THAT slab, not always the ground floor's, or upper storeys put
+  // the camera below the floor plate.
+  const eyeY = useMemo(
+    () => EYE_H + (scene && activeFloorId ? floorElevation(scene, activeFloorId) * MM : 0),
+    [scene, activeFloorId],
+  );
 
   const active = viewMode === 'walk' || viewMode === 'tour';
 
@@ -177,7 +188,7 @@ export function WalkControls({ tourPoses = [], start }: WalkControlsProps) {
     }
 
     const [wx, wz] = planToWorldXZ(pose.current.x, pose.current.y);
-    camera.position.set(wx, EYE_H, wz);
+    camera.position.set(wx, eyeY, wz);
     euler.set(pitch.current, yawToThree(pose.current.yaw), 0);
     camera.quaternion.setFromEuler(euler);
   });

@@ -117,12 +117,22 @@ const slug = (s: string) => s.replace(/[^a-zA-Z0-9-_ ]/g, '').trim().replace(/\s
 
 function buildJobs(scene: HomeScene): BatchJob[] {
   const jobs: BatchJob[] = [];
+  // Labels become filenames; two rooms named "Bedroom" would collide and one
+  // render would silently overwrite the other. Suffix duplicates -2, -3, …
+  const used = new Set<string>();
+  const unique = (base: string): string => {
+    let label = base;
+    let n = 2;
+    while (used.has(label)) label = `${base}-${n++}`;
+    used.add(label);
+    return label;
+  };
   for (const floor of scene.floors) {
-    jobs.push({ label: `${slug(floor.name)}-overview` });
+    jobs.push({ label: unique(`${slug(floor.name)}-overview`) });
     for (const room of floor.rooms) {
       // Tiny slivers (closets, shafts) make degenerate interiors — skip < 2 m².
       if (Math.abs(polygonArea(room.boundary.outer)) * 1e-6 < 2) continue;
-      jobs.push({ label: `${slug(floor.name)}-${slug(room.name)}`, ...roomCamera(room, floor.objects) });
+      jobs.push({ label: unique(`${slug(floor.name)}-${slug(room.name)}`), ...roomCamera(room, floor.objects) });
     }
   }
   return jobs;

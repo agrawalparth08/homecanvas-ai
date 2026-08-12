@@ -33,15 +33,15 @@ export class AppErrorBoundary extends Component<Props, State> {
     const { error } = this.state;
     if (!error) return this.props.children;
     return (
-      <div className="flex h-screen flex-col items-center justify-center bg-canvas-bg p-6 text-center">
-        <div className="max-w-lg rounded-xl border border-panel-border bg-panel p-7 shadow-xl">
-          <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-rose-50 text-2xl text-rose-600">
+      <div className="flex h-screen flex-col items-center justify-center bg-app p-6 text-center">
+        <div className="hc-card max-w-lg rounded-xl border border-line bg-panel p-7">
+          <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-[#e9c89e] bg-[#fbf0e3] text-2xl text-[#9a5a1e]">
             <Icon name="warning" />
           </span>
-          <h1 className="mt-3 text-base font-semibold text-neutral-100">Something broke on screen</h1>
-          <p className="mt-1.5 break-words text-sm text-neutral-400">{error.message}</p>
+          <h1 className="mt-3 text-base font-semibold text-ink">Something broke on screen</h1>
+          <p className="mt-1.5 break-words text-sm text-dim">{error.message}</p>
           {error.stack && (
-            <pre className="mt-4 max-h-48 overflow-auto whitespace-pre-wrap rounded-md bg-neutral-900 p-3 text-left text-[10px] leading-snug text-neutral-400">
+            <pre className="mt-4 max-h-48 overflow-auto whitespace-pre-wrap rounded-md bg-soft p-3 text-left font-mono text-[10px] leading-snug text-dim">
               {error.stack}
             </pre>
           )}

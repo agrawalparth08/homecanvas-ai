@@ -44,11 +44,11 @@ export function BeforeAfterCompare({
         <ScenePreview3D scene={current} floorId={floorId} lockCamera />
       </div>
 
-      <span className="pointer-events-none absolute left-3 top-3 rounded bg-black/55 px-2 py-0.5 text-[11px] font-medium text-white">
-        Before
+      <span className="pointer-events-none absolute left-3 top-3 rounded-[9px] border border-white/15 bg-white/10 px-2 py-0.5 font-mono text-[11px] font-medium text-white backdrop-blur">
+        BEFORE
       </span>
-      <span className="pointer-events-none absolute right-3 top-3 rounded bg-black/55 px-2 py-0.5 text-[11px] font-medium text-white">
-        After
+      <span className="pointer-events-none absolute right-3 top-3 rounded-[9px] border border-white/15 bg-white/10 px-2 py-0.5 font-mono text-[11px] font-medium text-white backdrop-blur">
+        AFTER
       </span>
 
       <div
@@ -62,7 +62,7 @@ export function BeforeAfterCompare({
         onPointerMove={(e) => dragging && onMove(e.clientX)}
         onPointerUp={() => setDragging(false)}
       >
-        <div className="absolute left-1/2 top-1/2 flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white text-xs text-neutral-700 shadow-md">
+        <div className="absolute left-1/2 top-1/2 flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white text-xs text-accent shadow-md ring-2 ring-accent">
           ⇆
         </div>
       </div>

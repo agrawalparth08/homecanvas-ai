@@ -22,7 +22,7 @@ export function RoomNameEditor({ room, onPatch }: { room: Room; onPatch: (patch:
   };
 
   return (
-    <label className="block text-xs text-neutral-400">
+    <label className="block text-xs text-faint">
       Room name
       <input
         value={name}
@@ -35,7 +35,7 @@ export function RoomNameEditor({ room, onPatch }: { room: Room; onPatch: (patch:
             (e.target as HTMLInputElement).blur();
           }
         }}
-        className="mt-1 w-full rounded border border-panel-border bg-neutral-900 px-2 py-1.5 text-sm text-neutral-100"
+        className="mt-1 w-full rounded-[9px] border border-line bg-field px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none"
         placeholder="Room name"
       />
     </label>

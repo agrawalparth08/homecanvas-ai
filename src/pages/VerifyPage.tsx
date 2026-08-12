@@ -31,6 +31,7 @@ import { StairControls } from '../components/inspector/StairControls';
 import { RoomNameEditor } from '../components/inspector/RoomNameEditor';
 import { ReconcilePanel } from '../components/reconcile/ReconcilePanel';
 import { Icon } from '../components/ui/Icon';
+import { FOCUS_RING } from '../components/ui/primitives';
 import { fetchPrivateManifest, fetchScene, fetchVariant, fetchVariants, privateFileUrl, saveManualScene, saveRasterizedPage, saveVariantRemote } from '../api';
 import { loadRasterImage, rasterizePdf } from '../lib/pdf';
 import { useEditor } from '../store/editor-store';
@@ -64,8 +65,8 @@ function OpeningEditor({ opening, apply }: { opening: Opening; apply: (p: SceneP
   };
   return (
     <div>
-      <div className="mb-1 text-xs uppercase tracking-wide text-neutral-500">{opening.kind === 'door' ? 'Door' : 'Window'}</div>
-      <label className="block text-xs text-neutral-400">
+      <div className="mb-1 text-xs uppercase tracking-wide text-faint">{opening.kind === 'door' ? 'Door' : 'Window'}</div>
+      <label className="block text-xs text-dim">
         Width (mm)
         <input
           type="number"
@@ -75,7 +76,7 @@ function OpeningEditor({ opening, apply }: { opening: Opening; apply: (p: SceneP
           onChange={(e) => setW(e.target.value)}
           onBlur={commitWidth}
           onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-          className="mt-1 w-full rounded border border-panel-border bg-neutral-900 px-2 py-1.5 text-sm text-neutral-100"
+          className="mt-1 w-full rounded border border-line bg-field px-2 py-1.5 text-sm font-mono text-ink"
         />
       </label>
     </div>
@@ -106,7 +107,7 @@ function RescalePanel({ floor, flagged, onRescale }: { floor: Floor; flagged: bo
   return (
     <div className={`rounded-lg border p-2 text-xs ${flagged ? 'border-[#e9c89e] bg-[#fbf0e3] text-[#9a5a1e]' : 'border-line bg-panel text-dim'}`}>
       <div className="font-medium">{flagged ? '⚠ Scale looks off' : 'Rescale (optional)'}</div>
-      <div className="mt-1 opacity-80">Current width ≈ {(wMm / 1000).toFixed(1)} m. Enter this floor’s real width:</div>
+      <div className="mt-1 opacity-80 font-mono">Current width ≈ {(wMm / 1000).toFixed(1)} m. Enter this floor’s real width:</div>
       <div className="mt-1.5 flex gap-1">
         <input
           type="number"
@@ -116,7 +117,7 @@ function RescalePanel({ floor, flagged, onRescale }: { floor: Floor; flagged: bo
           onChange={(e) => setRealM(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
           placeholder="metres"
-          className="w-full rounded border border-panel-border bg-neutral-900 px-2 py-1 text-neutral-100"
+          className="w-full rounded border border-line bg-field px-2 py-1 font-mono text-ink"
         />
         <button onClick={submit} className="rounded bg-accent/25 px-2 font-medium text-accent hover:bg-accent/35">
           Rescale
@@ -523,7 +524,7 @@ export function VerifyPage() {
 
   if (!scene || !floor) {
     return (
-      <div className="flex h-screen items-center justify-center bg-canvas-bg text-neutral-400">
+      <div className="flex h-screen items-center justify-center bg-app text-dim">
         Loading your home…{' '}
         <Link to="/" className="ml-2 text-accent">
           home
@@ -663,7 +664,7 @@ export function VerifyPage() {
           <div className="flex-1 overflow-y-auto p-6">
             <h2 className="mb-3 text-sm font-semibold">Pick the plan page for {floor.name}</h2>
             {planFiles.length === 0 ? (
-              <p className="text-sm text-neutral-400">
+              <p className="text-sm text-dim">
                 No plan files found. Drop a PDF or image into{' '}
                 <code className="text-xs">private-home-inputs/raw/</code> and reload.
               </p>
@@ -673,10 +674,10 @@ export function VerifyPage() {
                   <button
                     key={f.id}
                     onClick={() => void pickFile(f.filePath, f.mimeType)}
-                    className="rounded-lg border border-panel-border bg-panel p-3 text-left hover:border-accent/50"
+                    className={`hc-card rounded-[13px] border border-line bg-panel p-3 text-left transition hover:border-wash-line ${FOCUS_RING}`}
                   >
-                    <div className="text-sm text-neutral-200">{f.fileName}</div>
-                    <div className="mt-1 text-xs text-neutral-500">
+                    <div className="text-sm text-ink">{f.fileName}</div>
+                    <div className="mt-1 text-xs font-mono text-faint">
                       {f.role} · {(f.bytes / 1024).toFixed(0)} KB · {f.mimeType.includes('pdf') ? 'PDF' : 'image'}
                     </div>
                   </button>
@@ -686,22 +687,22 @@ export function VerifyPage() {
           </div>
         ) : showEditor ? (
           <>
-            <div className="flex w-44 flex-col gap-3 border-r border-panel-border bg-panel p-3">
+            <div className="flex w-44 flex-col gap-3 border-r border-line bg-panel p-3">
               {wstate.step !== 'scale' && wstate.step !== 'review' && (
                 <div>
-                  <div className="mb-1 text-xs uppercase tracking-wide text-neutral-500">Tool</div>
+                  <div className="mb-1 text-xs uppercase tracking-wide text-faint">Tool</div>
                   <div className="flex flex-col gap-1">
                     {tools.map((t) => (
                       <button
                         key={t.id}
                         onClick={() => setTool(t.id)}
-                        className={`rounded px-2 py-1.5 text-left text-xs ${tool === t.id ? 'bg-accent/25 text-accent' : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700'}`}
+                        className={`rounded-[10px] px-2 py-1.5 text-left text-xs transition ${FOCUS_RING} ${tool === t.id ? 'bg-accent text-white' : 'text-dim hover:bg-soft'}`}
                       >
                         {t.label}
                       </button>
                     ))}
                     {selection && (
-                      <button onClick={deleteSelection} className="mt-1 rounded bg-red-950 px-2 py-1.5 text-left text-xs text-red-300 hover:bg-red-900">
+                      <button onClick={deleteSelection} className={`mt-1 rounded-[10px] bg-rose-50 px-2 py-1.5 text-left text-xs text-rose-600 transition hover:bg-rose-100 ${FOCUS_RING}`}>
                         Delete selected
                       </button>
                     )}
@@ -711,7 +712,7 @@ export function VerifyPage() {
                       onClick={undo}
                       disabled={undoStack.length === 0}
                       title="Undo (⌘Z)"
-                      className="inline-flex flex-1 items-center justify-center gap-1 rounded bg-neutral-800 px-2 py-1.5 text-xs text-neutral-200 enabled:hover:bg-neutral-700 disabled:opacity-40"
+                      className={`inline-flex flex-1 items-center justify-center gap-1 rounded-[10px] bg-soft px-2 py-1.5 text-xs text-dim transition enabled:hover:bg-soft-2 disabled:opacity-40 ${FOCUS_RING}`}
                     >
                       <Icon name="undo" /> Undo
                     </button>
@@ -719,26 +720,26 @@ export function VerifyPage() {
                       onClick={redo}
                       disabled={redoStack.length === 0}
                       title="Redo (⇧⌘Z)"
-                      className="inline-flex flex-1 items-center justify-center gap-1 rounded bg-neutral-800 px-2 py-1.5 text-xs text-neutral-200 enabled:hover:bg-neutral-700 disabled:opacity-40"
+                      className={`inline-flex flex-1 items-center justify-center gap-1 rounded-[10px] bg-soft px-2 py-1.5 text-xs text-dim transition enabled:hover:bg-soft-2 disabled:opacity-40 ${FOCUS_RING}`}
                     >
                       <Icon name="redo" /> Redo
                     </button>
                   </div>
-                  <p className="mt-1 text-[10px] text-neutral-500">Del/⌫ deletes the selected item.</p>
+                  <p className="mt-1 text-[10px] text-faint">Del/⌫ deletes the selected item.</p>
                   {selRoom && <div className="mt-3"><RoomNameEditor room={selRoom} onPatch={apply} /></div>}
                   {selOpening && <div className="mt-3"><OpeningEditor opening={selOpening} apply={apply} /></div>}
                   {selStair && (
                     <div className="mt-3">
-                      <div className="mb-1 text-xs uppercase tracking-wide text-neutral-500">Staircase</div>
+                      <div className="mb-1 text-xs uppercase tracking-wide text-faint">Staircase</div>
                       <StairControls stair={selStair} materials={scene.materials} onPatch={apply} />
                     </div>
                   )}
                 </div>
               )}
               {wstate.step === 'scale' && (
-                <div className="text-xs text-neutral-400">
+                <div className="text-xs text-dim">
                   Click two points along a known dimension, then type its length. The plan rescales to real-world mm.
-                  {calibration && <div className="mt-2 font-semibold text-ok">✓ scale set ({calibration.mmPerPx.toFixed(1)} mm/px)</div>}
+                  {calibration && <div className="mt-2 font-semibold text-ok font-mono">✓ scale set ({calibration.mmPerPx.toFixed(1)} mm/px)</div>}
                 </div>
               )}
               {wstate.step === 'scale' && floor.walls.length > 0 && (
@@ -752,7 +753,7 @@ export function VerifyPage() {
                 />
               )}
               {floor.underlay && (
-                <label className="block text-xs text-neutral-400">
+                <label className="block text-xs text-dim">
                   Plan opacity
                   <input
                     type="range"
@@ -761,34 +762,34 @@ export function VerifyPage() {
                     step={0.05}
                     defaultValue={floor.underlay.opacity}
                     onChange={(e) => setOpacity(Number(e.target.value))}
-                    className="mt-1 w-full"
+                    className="mt-1 w-full accent-[var(--color-accent)]"
                   />
                 </label>
               )}
               {tool === 'select' && (
-                <p className="text-[11px] leading-snug text-neutral-500">
+                <p className="text-[11px] leading-snug text-faint">
                   Drag a wall to move it (end-dots move one end), a room’s corner-dots to resize, or a door/window dot along its wall. Click any element, then “Delete selected” to remove it.
                 </p>
               )}
               <button
                 onClick={() => setShow3D((v) => !v)}
-                className="rounded bg-neutral-800 px-2 py-1.5 text-left text-xs text-neutral-300 hover:bg-neutral-700"
+                className={`rounded-[10px] px-2 py-1.5 text-left text-xs text-dim transition hover:bg-soft ${FOCUS_RING}`}
               >
                 <span className="inline-flex items-center gap-1.5"><Icon name="columns" /> {show3D ? 'Hide live 3D' : 'Show live 3D'}</span>
               </button>
 
-              <div className="mt-3 border-t border-panel-border pt-2">
-                <div className="mb-1 text-xs uppercase tracking-wide text-neutral-500">Versions</div>
+              <div className="mt-3 border-t border-line pt-2">
+                <div className="mb-1 text-xs uppercase tracking-wide text-faint">Versions</div>
                 <div className="flex flex-col gap-1">
                   <button
                     onClick={() => void quickSave()}
-                    className="rounded bg-neutral-800 px-2 py-1.5 text-left text-xs text-neutral-100 hover:bg-neutral-700"
+                    className={`rounded-[10px] px-2 py-1.5 text-left text-xs text-ink transition hover:bg-soft ${FOCUS_RING}`}
                   >
                     <span className="inline-flex items-center gap-1.5"><Icon name="save" /> Save (keep my edits)</span>
                   </button>
                   <button
                     onClick={() => void saveVersion()}
-                    className="rounded bg-accent/20 px-2 py-1.5 text-left text-xs text-accent hover:bg-accent/30"
+                    className={`rounded-[10px] bg-wash px-2 py-1.5 text-left text-xs text-accent transition hover:bg-[#e4e2fb] ${FOCUS_RING}`}
                   >
                     <span className="inline-flex items-center gap-1.5"><Icon name="plus" /> Save as version…</span>
                   </button>
@@ -799,7 +800,7 @@ export function VerifyPage() {
                         if (e.target.value) void loadVersion(e.target.value);
                         e.currentTarget.selectedIndex = 0;
                       }}
-                      className="rounded border border-panel-border bg-neutral-800 px-2 py-1.5 text-xs text-neutral-200"
+                      className={`rounded-[10px] border border-line bg-field px-2 py-1.5 text-xs text-ink ${FOCUS_RING}`}
                     >
                       <option value="" disabled>
                         Load a version… ({versions.length})
@@ -814,11 +815,11 @@ export function VerifyPage() {
                 </div>
               </div>
 
-              <div className="mt-auto text-xs text-neutral-500">
+              <div className="mt-auto text-xs font-mono text-faint">
                 {floor.walls.length} walls · {floor.rooms.length} rooms · {floor.openings.length} openings
               </div>
             </div>
-            <div className="relative min-w-0 flex-1 border-r border-panel-border">
+            <div className="relative min-w-0 flex-1 border-r border-line">
               <Plan2DEditor
                 floor={floor}
                 underlayUrl={underlayUrl}
@@ -833,7 +834,7 @@ export function VerifyPage() {
             {show3D && (
               <div className="relative min-w-0 flex-1">
                 <ScenePreview3D scene={scene} floorId={floorId} onPick={setSelection} selectedId={selection} />
-                <div className="pointer-events-none absolute left-2 top-2 rounded bg-black/55 px-2 py-1 text-[11px] text-neutral-200">
+                <div className="pointer-events-none absolute left-2 top-2 rounded-[10px] bg-white/10 px-2 py-1 text-[11px] text-white backdrop-blur">
                   Live 3D · {floor.name} · updates on each edit
                 </div>
               </div>

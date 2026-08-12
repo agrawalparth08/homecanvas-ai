@@ -334,7 +334,7 @@ export function Plan2DEditor({
   return (
     <svg
       ref={svgRef}
-      className="h-full w-full touch-none select-none bg-neutral-900"
+      className="h-full w-full touch-none select-none bg-stage"
       onWheel={onWheel}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}

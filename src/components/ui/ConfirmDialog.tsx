@@ -45,7 +45,7 @@ export function ConfirmDialog({
   if (!open) return null;
   return (
     <div
-      className="fixed inset-0 z-[1100] flex items-center justify-center bg-neutral-50/40 p-4 backdrop-blur-[2px]"
+      className="fixed inset-0 z-[1100] flex items-center justify-center bg-ink/10 p-4 backdrop-blur-[2px]"
       onPointerDown={onCancel}
       role="presentation"
     >
@@ -53,20 +53,20 @@ export function ConfirmDialog({
         role="alertdialog"
         aria-modal="true"
         aria-label={title}
-        className="w-full max-w-md rounded-xl border border-panel-border bg-panel p-6 shadow-2xl"
+        className="hc-card w-full max-w-md rounded-xl border border-line bg-panel p-6"
         onPointerDown={(e) => e.stopPropagation()}
       >
         <div className="flex gap-4">
           <span
             className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[22px] ${
-              danger ? 'bg-rose-50 text-rose-600' : 'bg-accent/10 text-accent'
+              danger ? 'border border-[#e9c89e] bg-[#fbf0e3] text-[#9a5a1e]' : 'bg-wash text-accent'
             }`}
           >
             <Icon name="warning" strokeWidth={1.8} />
           </span>
           <div className="min-w-0 pt-0.5">
-            <h2 className="text-[15px] font-semibold text-neutral-100">{title}</h2>
-            <p className="mt-2 text-[13px] leading-relaxed text-neutral-400">{message}</p>
+            <h2 className="text-[15px] font-semibold text-ink">{title}</h2>
+            <p className="mt-2 text-[13px] leading-relaxed text-dim">{message}</p>
           </div>
         </div>
         <div className="mt-6 flex justify-end gap-2.5">

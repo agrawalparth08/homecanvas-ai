@@ -25,17 +25,17 @@ export function TourPanel() {
 
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-6 z-20 flex justify-center">
-      <div className="pointer-events-auto w-[min(640px,92vw)] rounded-xl border border-panel-border bg-panel/95 px-5 py-4 shadow-xl backdrop-blur">
+      <div className="pointer-events-auto w-[min(640px,92vw)] rounded-xl border border-white/15 bg-white/10 px-5 py-4 text-white shadow-xl backdrop-blur">
         <div className="flex items-center justify-between">
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-accent">
+          <div className="font-mono text-[11px] font-semibold uppercase tracking-wider text-accent">
             Stop {i + 1} / {stops.length}
           </div>
-          <button onClick={exit} className="inline-flex items-center gap-1 text-xs text-neutral-400 hover:text-neutral-100">
+          <button onClick={exit} className="inline-flex items-center gap-1 text-xs text-white/70 hover:text-white">
             Exit tour <Icon name="close" />
           </button>
         </div>
-        <div className="mt-1.5 text-lg font-semibold text-neutral-100">{stop.name}</div>
-        <div className="text-sm text-neutral-400">{stop.caption}</div>
+        <div className="mt-1.5 font-mono text-lg font-semibold text-white">{stop.name}</div>
+        <div className="text-sm text-white/70">{stop.caption}</div>
 
         <div className="mt-4 flex items-center gap-2">
           <Button variant="secondary" size="sm" icon="chevronLeft" onClick={prev} disabled={i === 0}>
@@ -54,7 +54,7 @@ export function TourPanel() {
                 key={s.roomId}
                 onClick={() => useEditor.getState().setTourIndex(idx)}
                 title={s.name}
-                className={`h-2 rounded-full transition-all ${idx === i ? 'w-5 bg-accent' : 'w-2 bg-neutral-700 hover:bg-neutral-600'}`}
+                className={`h-2 rounded-full transition-all ${idx === i ? 'w-5 bg-accent' : 'w-2 bg-white/25 hover:bg-white/40'}`}
               />
             ))}
           </div>

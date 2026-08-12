@@ -1,9 +1,21 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
-import { useQuery } from '@tanstack/react-query';
-import { fetchPrivateManifest } from '../api';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  fetchAssetFetchStatus,
+  fetchPrivateManifest,
+  fetchStorageStats,
+  fetchTrashedProjects,
+  restoreProject,
+  startAssetFetch,
+  trashProject,
+  type ProjectId,
+  type TrashedProject,
+} from '../api';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Icon, type IconName } from '../components/ui/Icon';
-import { Chip, Mono, SectionLabel, Segmented } from '../components/ui/primitives';
+import { Chip, FOCUS_RING, Mono, SectionLabel, Segmented } from '../components/ui/primitives';
+import { reportError } from '../store/error-store';
 
 type View = 'all' | 'recent' | 'templates' | 'trash';
 type Filter = 'all' | 'homes' | 'apartments' | 'samples';
@@ -19,6 +31,18 @@ interface Project {
   gradient: string;
   glyph: number;
   badge?: string;
+}
+
+const PROJECT_LABEL: Record<ProjectId, string> = { 'sample-home': 'Sample Penthouse', 'my-home': 'My Home' };
+
+/** Human-readable byte count for the storage meter (mono, e.g. "1.2 GB"). */
+function formatBytes(bytes: number): string {
+  if (!bytes || bytes < 0) return '0 KB';
+  const gb = bytes / 1024 ** 3;
+  if (gb >= 1) return `${gb.toFixed(1)} GB`;
+  const mb = bytes / 1024 ** 2;
+  if (mb >= 1) return `${Math.round(mb)} MB`;
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
 /** Track recently-opened projects locally (no backend) so the Recent view is real. */
@@ -58,12 +82,21 @@ function PlanGlyph({ variant }: { variant: number }) {
   return plans[variant % plans.length];
 }
 
-function ProjectCard({ p, onOpen }: { p: Project; onOpen: (id: string) => void }) {
+function ProjectCard({
+  p,
+  onOpen,
+  onTrashRequest,
+}: {
+  p: Project;
+  onOpen: (id: string) => void;
+  /** Omit to hide the hover trash button (e.g. the read-only Templates copy). */
+  onTrashRequest?: (p: Project) => void;
+}) {
   return (
     <Link
       to={p.to}
       onClick={() => onOpen(p.id)}
-      className="hc-card-glow group overflow-hidden rounded-[14px] border border-line bg-panel hc-card"
+      className="hc-card-glow group relative overflow-hidden rounded-[14px] border border-line bg-panel hc-card"
     >
       <div className="relative flex h-[138px] items-center justify-center" style={{ background: p.gradient }}>
         <PlanGlyph variant={p.glyph} />
@@ -71,6 +104,21 @@ function ProjectCard({ p, onOpen }: { p: Project; onOpen: (id: string) => void }
           <span className="absolute left-2.5 top-2.5 rounded-[7px] bg-panel px-2 py-1 text-[11px] font-bold text-accent shadow-[0_2px_6px_-2px_rgba(20,22,40,0.25)]">
             {p.badge}
           </span>
+        )}
+        {onTrashRequest && (
+          <button
+            type="button"
+            title="Move to trash"
+            aria-label={`Move ${p.name} to trash`}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onTrashRequest(p);
+            }}
+            className={`absolute right-2.5 top-2.5 flex h-7 w-7 items-center justify-center rounded-[7px] bg-panel text-dim opacity-0 shadow-[0_2px_6px_-2px_rgba(20,22,40,0.25)] transition hover:text-rose-600 group-hover:opacity-100 ${FOCUS_RING}`}
+          >
+            <Icon name="trash" className="text-[13px]" />
+          </button>
         )}
       </div>
       <div className="px-[15px] pb-4 pt-3.5">
@@ -109,13 +157,68 @@ function EmptyState({ icon, title, body }: { icon: IconName; title: string; body
   );
 }
 
+function TrashedRow({ entry, onRestored }: { entry: TrashedProject; onRestored: () => void }) {
+  const [restoring, setRestoring] = useState(false);
+  const onRestore = async () => {
+    setRestoring(true);
+    const ok = await restoreProject(entry.projectId, entry.trashedAt);
+    setRestoring(false);
+    if (ok) {
+      onRestored();
+    } else {
+      reportError(`Couldn't restore ${PROJECT_LABEL[entry.projectId]} — a live scene may already exist.`, { kind: 'rejected' });
+    }
+  };
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-line bg-panel px-4 py-3.5">
+      <div className="flex items-center gap-3">
+        <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[9px] bg-soft text-faint">
+          <Icon name="trash" className="text-[16px]" />
+        </span>
+        <div>
+          <span className="block text-[13.5px] font-semibold text-ink">{PROJECT_LABEL[entry.projectId]}</span>
+          <Mono className="text-[11.5px] text-faint">Trashed {new Date(entry.trashedAt).toLocaleString()}</Mono>
+        </div>
+      </div>
+      <button
+        type="button"
+        disabled={restoring}
+        onClick={onRestore}
+        className={`rounded-[9px] border border-wash-line px-3.5 py-2 text-[13px] font-semibold text-accent transition hover:bg-wash disabled:opacity-45 ${FOCUS_RING}`}
+      >
+        {restoring ? 'Restoring…' : 'Restore'}
+      </button>
+    </div>
+  );
+}
+
 export function HomePage() {
+  const queryClient = useQueryClient();
   const { data: manifest } = useQuery({ queryKey: ['private-manifest'], queryFn: fetchPrivateManifest });
+  const { data: storage } = useQuery({ queryKey: ['storage'], queryFn: fetchStorageStats });
+  const { data: trashedProjects = [] } = useQuery({ queryKey: ['trashed-projects'], queryFn: fetchTrashedProjects });
+  const { data: fetchStatus } = useQuery({
+    queryKey: ['assets-fetch-status'],
+    queryFn: fetchAssetFetchStatus,
+    // Keep polling every 2s only while the download is actually in flight.
+    refetchInterval: (q) => (q.state.data?.running ? 2000 : false),
+  });
   const [view, setView] = useState<View>('all');
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
   const [recent, setRecent] = useState<string[]>(() => readRecentIds());
+  const [confirmTrash, setConfirmTrash] = useState<Project | null>(null);
+  const [trashing, setTrashing] = useState(false);
+  const [fetchStarting, setFetchStarting] = useState(false);
   const hasMyHome = !!manifest && (manifest.hasGeneratedScene || manifest.hasManualScene);
+
+  // On completion, refresh what the download actually changed.
+  useEffect(() => {
+    if (!fetchStatus?.done) return;
+    void queryClient.invalidateQueries({ queryKey: ['storage'] });
+    void queryClient.invalidateQueries({ queryKey: ['asset-manifest'] });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchStatus?.done]);
 
   const projects: Project[] = useMemo(
     () => [
@@ -147,6 +250,39 @@ export function HomePage() {
   const onOpen = (id: string) => {
     recordOpen(id);
     setRecent(readRecentIds());
+  };
+
+  const invalidateAfterTrashChange = (projectId: string) => {
+    void queryClient.invalidateQueries({ queryKey: ['trashed-projects'] });
+    void queryClient.invalidateQueries({ queryKey: ['storage'] });
+    if (projectId === 'my-home') void queryClient.invalidateQueries({ queryKey: ['private-manifest'] });
+  };
+
+  const onConfirmTrash = async () => {
+    if (!confirmTrash) return;
+    // Close the dialog BEFORE the await — a double-click on Confirm must not
+    // fire a second POST (the first move already emptied the live scene → 404).
+    const trashedId = confirmTrash.id;
+    setConfirmTrash(null);
+    setTrashing(true);
+    const ok = await trashProject(trashedId as ProjectId);
+    setTrashing(false);
+    if (ok) {
+      invalidateAfterTrashChange(trashedId);
+    } else {
+      reportError(`Couldn't move ${PROJECT_LABEL[trashedId as ProjectId] ?? trashedId} to trash.`, { kind: 'rejected' });
+    }
+  };
+
+  const onFetchAssets = async () => {
+    setFetchStarting(true);
+    const ok = await startAssetFetch();
+    setFetchStarting(false);
+    if (ok) {
+      void queryClient.invalidateQueries({ queryKey: ['assets-fetch-status'] });
+    } else {
+      reportError('Asset download is already running or failed to start.', { kind: 'rejected' });
+    }
   };
 
   // top-filter + search apply to the project grids (All / Recent)
@@ -240,12 +376,24 @@ export function HomePage() {
           <div className="flex flex-col gap-2.5 rounded-xl border border-line bg-panel p-3.5">
             <span className="flex justify-between text-[12px] font-semibold text-dim">
               <span>Local storage</span>
-              <Mono className="text-faint">2.4 / 16 GB</Mono>
+              <Mono className="text-faint">{storage ? formatBytes(storage.totalBytes) : '—'}</Mono>
             </span>
-            <span className="block h-1.5 overflow-hidden rounded bg-track">
-              <span className="block h-full w-[15%] rounded bg-accent" />
+            {/* Stacked breakdown (assets / scenes+backups / app data) — shares of the
+                total, so the bar always reads honestly rather than as "% full". */}
+            <span className="flex h-1.5 gap-px overflow-hidden rounded bg-track">
+              {storage && storage.totalBytes > 0 && (
+                <>
+                  <span className="block h-full bg-accent" style={{ width: `${(storage.assetsBytes / storage.totalBytes) * 100}%` }} title={`Assets ${formatBytes(storage.assetsBytes)}`} />
+                  <span className="block h-full bg-[#6f6af0]" style={{ width: `${((storage.scenesBytes + storage.backupsBytes) / storage.totalBytes) * 100}%` }} title={`Scenes & backups ${formatBytes(storage.scenesBytes + storage.backupsBytes)}`} />
+                  <span className="block h-full bg-[#c7c4f6]" style={{ width: `${(storage.appDataBytes / storage.totalBytes) * 100}%` }} title={`App data ${formatBytes(storage.appDataBytes)}`} />
+                </>
+              )}
             </span>
-            <span className="text-[11.5px] text-faint">Textures &amp; HDRIs cached locally</span>
+            <span className="text-[11.5px] text-faint">
+              {storage
+                ? `Assets ${formatBytes(storage.assetsBytes)} · scenes & backups ${formatBytes(storage.scenesBytes + storage.backupsBytes)}`
+                : 'Textures, HDRIs & scenes on this machine'}
+            </span>
           </div>
         </aside>
 
@@ -276,7 +424,7 @@ export function HomePage() {
             <div className="grid grid-cols-1 gap-[18px] sm:grid-cols-2 xl:grid-cols-4">
               <UploadTile />
               {filtered.map((p) => (
-                <ProjectCard key={p.id} p={p} onOpen={onOpen} />
+                <ProjectCard key={p.id} p={p} onOpen={onOpen} onTrashRequest={setConfirmTrash} />
               ))}
               {filtered.length === 0 && (
                 <div className="col-span-full">
@@ -291,7 +439,7 @@ export function HomePage() {
             (recentList.length ? (
               <div className="grid grid-cols-1 gap-[18px] sm:grid-cols-2 xl:grid-cols-4">
                 {recentList.map((p) => (
-                  <ProjectCard key={p.id} p={p} onOpen={onOpen} />
+                  <ProjectCard key={p.id} p={p} onOpen={onOpen} onTrashRequest={setConfirmTrash} />
                 ))}
               </div>
             ) : (
@@ -310,39 +458,80 @@ export function HomePage() {
           )}
 
           {/* TRASH */}
-          {view === 'trash' && (
-            <EmptyState
-              icon="trash"
-              title="Trash is empty"
-              body="Deleted projects move here. Nothing’s been deleted — your homes are safe on this machine."
-            />
-          )}
+          {view === 'trash' &&
+            (trashedProjects.length ? (
+              <div className="flex max-w-[560px] flex-col gap-2.5">
+                {trashedProjects.map((t) => (
+                  <TrashedRow key={`${t.projectId}-${t.trashedAt}`} entry={t} onRestored={() => invalidateAfterTrashChange(t.projectId)} />
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                icon="trash"
+                title="Trash is empty"
+                body="Deleted projects move here. Nothing’s been deleted — your homes are safe on this machine."
+              />
+            ))}
 
           {/* fetch-assets tip (general — All view only) */}
           {view === 'all' && (
             <div className="mt-6 flex max-w-[920px] items-center gap-3.5 rounded-xl border border-line bg-panel p-4">
-              <span className="flex h-[38px] w-[38px] flex-shrink-0 items-center justify-center rounded-[10px] bg-wash text-accent">
-                <Icon name="sun" className="text-[20px]" strokeWidth={1.9} />
-              </span>
-              <div className="flex-1">
-                <span className="block text-[13.5px] font-semibold">
-                  Run <code className="rounded bg-track px-1.5 font-mono text-[12px]">fetch:assets</code> to download CC0
-                  textures &amp; HDRIs
-                </span>
-                <span className="text-[12.5px] text-faint">
-                  Far more realistic materials — without it, everything still works with flat colours.
-                </span>
-              </div>
-              <Link
-                to="/upload"
-                className="rounded-[9px] border border-wash-line px-3.5 py-2 text-[13px] font-semibold text-accent transition hover:bg-wash"
+              <span
+                className={`flex h-[38px] w-[38px] flex-shrink-0 items-center justify-center rounded-[10px] ${
+                  fetchStatus?.error ? 'border border-[#e9c89e] bg-[#fbf0e3] text-[#9a5a1e]' : fetchStatus?.done ? 'bg-[#e9f6ef] text-ok' : 'bg-wash text-accent'
+                }`}
               >
-                Set up
-              </Link>
+                <Icon name={fetchStatus?.error ? 'warning' : fetchStatus?.done ? 'check' : 'sun'} className="text-[20px]" strokeWidth={1.9} />
+              </span>
+              <div className="min-w-0 flex-1">
+                {fetchStatus?.done ? (
+                  <span className="block text-[13.5px] font-semibold text-ok">Assets ready</span>
+                ) : (
+                  <span className="block text-[13.5px] font-semibold">
+                    Download CC0 textures &amp; HDRIs for far more realistic materials
+                  </span>
+                )}
+                {fetchStatus?.error ? (
+                  <span className="block truncate text-[12.5px] text-[#9a5a1e]">{fetchStatus.error}</span>
+                ) : fetchStatus?.running ? (
+                  <Mono className="block truncate text-[12px] text-faint">
+                    {fetchStatus.lastLines[fetchStatus.lastLines.length - 1] ?? 'Starting…'}
+                  </Mono>
+                ) : (
+                  <span className="text-[12.5px] text-faint">
+                    {fetchStatus?.available === false
+                      ? 'In the installed app, run npm run fetch:assets from a source checkout.'
+                      : 'Without it, everything still works with flat colours.'}
+                  </span>
+                )}
+              </div>
+              {fetchStatus?.available !== false && (
+              <button
+                type="button"
+                disabled={fetchStarting || fetchStatus?.running}
+                onClick={onFetchAssets}
+                className={`flex-shrink-0 rounded-[9px] border border-wash-line px-3.5 py-2 text-[13px] font-semibold text-accent transition hover:bg-wash disabled:opacity-45 ${FOCUS_RING}`}
+              >
+                {fetchStatus?.running ? 'Downloading…' : fetchStatus?.done ? 'Re-download' : 'Download'}
+              </button>
+              )}
             </div>
           )}
         </main>
       </div>
+
+      <ConfirmDialog
+        open={!!confirmTrash}
+        title={`Move "${confirmTrash?.name ?? ''}" to trash?`}
+        message={
+          confirmTrash?.id === 'my-home'
+            ? 'Moves my-home.scene.json and my-home.manual.scene.json out of private-home-inputs into a local backups/trash folder. Nothing is deleted — restore it any time from the Trash view.'
+            : 'Moves the scene file to a local trash folder on this machine. Nothing is deleted — restore it any time from the Trash view.'
+        }
+        confirmLabel={trashing ? 'Moving…' : 'Move to trash'}
+        onConfirm={onConfirmTrash}
+        onCancel={() => setConfirmTrash(null)}
+      />
     </div>
   );
 }

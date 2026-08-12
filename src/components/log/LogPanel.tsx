@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLog, type LogEntry, type LogSource } from '../../store/log-store';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
+import { FOCUS_RING, Mono } from '../ui/primitives';
 
 type Filter = 'all' | 'user' | 'app' | 'errors';
 
@@ -26,28 +27,28 @@ function matches(e: LogEntry, f: Filter): boolean {
 
 function badgeOf(source: LogSource): { label: string; cls: string } {
   return source === 'user'
-    ? { label: 'You', cls: 'bg-accent/10 text-accent' }
-    : { label: 'App', cls: 'bg-neutral-800 text-neutral-500' };
+    ? { label: 'You', cls: 'bg-wash text-accent' }
+    : { label: 'App', cls: 'bg-soft text-dim' };
 }
 
 function dotOf(level: LogEntry['level']): string {
-  return level === 'error' ? 'bg-rose-500' : level === 'warn' ? 'bg-amber-500' : 'bg-emerald-500';
+  return level === 'error' ? 'bg-rose-500' : level === 'warn' ? 'bg-[#d98a3d]' : 'bg-[#2f9e6b]';
 }
 
 function LogRow({ entry }: { entry: LogEntry }) {
   const [open, setOpen] = useState(false);
   const badge = badgeOf(entry.source);
   return (
-    <div className="border-b border-panel-border/60 px-3 py-1.5 text-[12px]">
+    <div className="border-b border-line/60 px-3 py-1.5 text-[12px]">
       <div className="flex items-start gap-2">
         <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${dotOf(entry.level)}`} />
-        <span className="shrink-0 pt-0.5 font-mono text-[10px] tabular-nums text-neutral-500">{clockOf(entry.at)}</span>
+        <Mono className="shrink-0 pt-0.5 text-[10px] tabular-nums text-faint">{clockOf(entry.at)}</Mono>
         <span className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${badge.cls}`}>{badge.label}</span>
-        <span className={`min-w-0 flex-1 break-words ${entry.level === 'error' ? 'text-rose-600' : 'text-neutral-200'}`}>{entry.message}</span>
+        <span className={`min-w-0 flex-1 break-words ${entry.level === 'error' ? 'text-rose-600' : 'text-ink'}`}>{entry.message}</span>
         {entry.detail && (
           <button
             onClick={() => setOpen((o) => !o)}
-            className="shrink-0 text-neutral-500 hover:text-neutral-300"
+            className={`shrink-0 rounded text-faint hover:text-dim ${FOCUS_RING}`}
             title={open ? 'Hide details' : 'Show details'}
           >
             <Icon name={open ? 'chevronUp' : 'chevronDown'} />
@@ -55,7 +56,7 @@ function LogRow({ entry }: { entry: LogEntry }) {
         )}
       </div>
       {open && entry.detail && (
-        <pre className="ml-6 mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-neutral-900 p-2 text-[10px] leading-snug text-neutral-400">
+        <pre className="ml-6 mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded-[9px] bg-field p-2 font-mono text-[11px] leading-snug text-dim">
           {entry.detail}
         </pre>
       )}
@@ -79,26 +80,26 @@ export function LogPanel() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center gap-1.5 border-b border-panel-border px-2.5 py-2">
-        <div className="flex overflow-hidden rounded-md border border-panel-border text-[11px]">
+      <div className="flex items-center gap-1.5 border-b border-line px-2.5 py-2">
+        <div className="flex overflow-hidden rounded-[9px] border border-line bg-track text-[11px]">
           {FILTERS.map((f) => (
             <button
               key={f.key}
               onClick={() => setFilter(f.key)}
-              className={`px-2 py-1 font-medium ${filter === f.key ? 'bg-accent text-white' : 'text-neutral-500 hover:text-neutral-300'}`}
+              className={`px-2 py-1 font-medium ${FOCUS_RING} ${filter === f.key ? 'bg-accent text-white' : 'text-faint hover:text-dim'}`}
             >
               {f.label}
             </button>
           ))}
         </div>
-        <span className="ml-auto text-[11px] tabular-nums text-neutral-500">{shown.length}</span>
+        <Mono className="ml-auto text-[11px] tabular-nums text-faint">{shown.length}</Mono>
         <Button variant="ghost" size="sm" icon="trash" onClick={clear} disabled={entries.length === 0}>
           Clear
         </Button>
       </div>
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
         {shown.length === 0 ? (
-          <div className="p-4 text-center text-[12px] text-neutral-500">
+          <div className="p-4 text-center text-[12px] text-faint">
             {entries.length === 0
               ? 'No activity yet. Your edits, assistant chats, and any errors show up here.'
               : 'Nothing in this filter.'}

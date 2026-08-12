@@ -192,3 +192,89 @@ export async function saveManualScene(scene: HomeScene): Promise<boolean> {
     return false;
   }
 }
+
+export interface StorageStats {
+  assetsBytes: number;
+  appDataBytes: number;
+  scenesBytes: number;
+  backupsBytes: number;
+  totalBytes: number;
+}
+
+/** Real on-disk usage: asset cache + app data + processed scenes (never raw/ contents). */
+export async function fetchStorageStats(): Promise<StorageStats | null> {
+  try {
+    return await json<StorageStats>(await fetch('/api/storage'));
+  } catch (e) {
+    traceDevError('fetchStorageStats', e, 'network');
+    return null;
+  }
+}
+
+export interface AssetFetchStatus {
+  running: boolean;
+  done: boolean;
+  error: string | null;
+  lastLines: string[];
+  /** False when the sidecar has no source checkout (packaged app) — hide the button. */
+  available?: boolean;
+}
+
+/** Kick off the CC0 asset download (scripts/fetch-assets.ts) as a child process. */
+export async function startAssetFetch(): Promise<boolean> {
+  try {
+    const res = await fetch('/api/assets/fetch', { method: 'POST' });
+    return res.ok;
+  } catch (e) {
+    traceDevError('startAssetFetch', e, 'network');
+    return false;
+  }
+}
+
+// Note: this one THROWS on failure (no catch-to-idle) — a transient status-fetch
+// error must not read as "download finished"; react-query keeps the last known
+// status and the poll loop stays alive.
+export async function fetchAssetFetchStatus(): Promise<AssetFetchStatus> {
+  return json<AssetFetchStatus>(await fetch('/api/assets/fetch/status'));
+}
+
+/** Move a project's scene file(s) into the trash (never touches raw/ uploads). */
+export async function trashProject(projectId: ProjectId): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/projects/${projectId}/trash`, { method: 'POST' });
+    return res.ok;
+  } catch (e) {
+    traceDevError('trashProject', e, 'network');
+    return false;
+  }
+}
+
+/** Restore a specific trashed set (the row the user clicked); newest when omitted. */
+export async function restoreProject(projectId: ProjectId, trashedAt?: number): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/projects/${projectId}/restore`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(trashedAt !== undefined ? { trashedAt } : {}),
+    });
+    return res.ok;
+  } catch (e) {
+    traceDevError('restoreProject', e, 'network');
+    return false;
+  }
+}
+
+export interface TrashedProject {
+  projectId: ProjectId;
+  trashedAt: number;
+}
+
+export async function fetchTrashedProjects(): Promise<TrashedProject[]> {
+  try {
+    const data = await json<{ trashed: TrashedProject[] }>(await fetch('/api/projects/trashed'));
+    return data.trashed;
+  } catch (e) {
+    traceDevError('fetchTrashedProjects', e, 'network');
+    return [];
+  }
+}

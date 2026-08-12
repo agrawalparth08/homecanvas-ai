@@ -1,6 +1,7 @@
 import { serve } from '@hono/node-server';
+import { spawn } from 'node:child_process';
 import { existsSync, statSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rename, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { Hono } from 'hono';
 import { detectPrivateHomeFiles } from '../lib/fixtures/private-home';
@@ -16,12 +17,14 @@ import { DesignVariantSchema, HomeSceneSchema } from '../lib/scene/schemas';
 import { hasErrors, validateScene } from '../lib/scene/validation';
 import { EMPTY_ASSET_MANIFEST } from '../lib/assets/manifest';
 import {
+  APP_DATA,
   ASSET_CACHE,
   PRIVATE_ROOT,
   isProjectId,
   listVariants,
   loadScene,
   loadVariant,
+  manualScenePath,
   resolvePrivateFile,
   saveManualScene,
   saveRasterizedPage,
@@ -356,6 +359,284 @@ app.get('/api/assets/file/*', async (c) => {
   return c.body(new Uint8Array(data), 200, { 'Content-Type': type, 'Cache-Control': 'max-age=3600' });
 });
 
+// ---------------------------------------------------------------------------
+// storage meter
+// ---------------------------------------------------------------------------
+
+/** Recursively sum file bytes under `dir` (sizes only — never reads content). */
+async function dirSize(dir: string): Promise<number> {
+  if (!existsSync(dir)) return 0;
+  let total = 0;
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      total += await dirSize(full);
+    } else if (entry.isFile()) {
+      try {
+        total += statSync(full).size;
+      } catch {
+        // race: file removed between readdir and stat — skip, don't fail the meter
+      }
+    }
+  }
+  return total;
+}
+
+app.get('/api/storage', async (c) => {
+  const [assetsBytes, appDataBytes, processedBytes, versionsBytes, backupsBytes] = await Promise.all([
+    dirSize(ASSET_CACHE),
+    dirSize(APP_DATA),
+    // Scoped to processed/ (never raw/ — that's the private upload itself).
+    dirSize(path.join(PRIVATE_ROOT, 'processed')),
+    dirSize(path.join(PRIVATE_ROOT, 'versions')),
+    // Auto-backups + trash the app itself writes — counted so the meter matches
+    // reality (trashing a project must not LOOK like freed space).
+    dirSize(path.join(PRIVATE_ROOT, 'backups')),
+  ]);
+  const scenesBytes = processedBytes + versionsBytes;
+  return c.json({
+    assetsBytes,
+    appDataBytes,
+    scenesBytes,
+    backupsBytes,
+    totalBytes: assetsBytes + appDataBytes + scenesBytes + backupsBytes,
+  });
+});
+
+// ---------------------------------------------------------------------------
+// in-app asset fetch (spawns scripts/fetch-assets.ts instead of a terminal)
+// ---------------------------------------------------------------------------
+
+// This file lives at <repo>/server/index.ts — resolve the repo root from here
+// rather than from storage's (possibly redirected) DATA_ROOT, since the fetcher
+// script + node_modules/.bin/tsx only exist in the real source repo. In the
+// packaged Electron bundle import.meta.dirname compiles to "" (esbuild CJS), so
+// the paths won't exist and the feature reports itself unavailable — honest 501
+// instead of a broken spawn. HOMECANVAS_REPO_DIR can point a packaged app at a
+// source checkout if the user has one.
+const REPO_DIR = process.env.HOMECANVAS_REPO_DIR ?? path.resolve(import.meta.dirname || '', '..');
+const FETCH_TSX_BIN = path.join(REPO_DIR, 'node_modules', '.bin', process.platform === 'win32' ? 'tsx.cmd' : 'tsx');
+const FETCH_SCRIPT = path.join(REPO_DIR, 'scripts', 'fetch-assets.ts');
+const assetFetchAvailable = () => existsSync(FETCH_TSX_BIN) && existsSync(FETCH_SCRIPT);
+
+interface FetchAssetsState {
+  running: boolean;
+  done: boolean;
+  error: string | null;
+  lastLines: string[];
+}
+let fetchState: FetchAssetsState = { running: false, done: false, error: null, lastLines: [] };
+// Run token: handlers from a superseded run must never clobber a newer run's
+// status (a stale `close` flipping running=false would let two children race).
+let fetchRunId = 0;
+let fetchChild: ReturnType<typeof spawn> | null = null;
+
+function pushFetchLine(line: string) {
+  const trimmed = line.trim();
+  if (!trimmed) return;
+  fetchState.lastLines.push(trimmed);
+  if (fetchState.lastLines.length > 20) fetchState.lastLines.shift();
+}
+
+app.post('/api/assets/fetch', (c) => {
+  if (!assetFetchAvailable()) {
+    return c.json({ error: 'asset download needs the source repo (run npm run fetch:assets from a checkout)' }, 501);
+  }
+  // Guard on the actual child, not just the flag — a wedged flag must not block
+  // forever, and a live child must never be doubled.
+  if (fetchState.running && fetchChild && fetchChild.exitCode === null) {
+    return c.json({ error: 'already running' }, 409);
+  }
+  const myRun = ++fetchRunId;
+  fetchState = { running: true, done: false, error: null, lastLines: [] };
+  let child;
+  try {
+    child = spawn(FETCH_TSX_BIN, [FETCH_SCRIPT], { cwd: REPO_DIR });
+  } catch (e) {
+    fetchState = { running: false, done: false, error: (e as Error).message, lastLines: [] };
+    return c.json({ error: (e as Error).message }, 500);
+  }
+  fetchChild = child;
+  const onOutput = (buf: Buffer) => {
+    if (myRun !== fetchRunId) return;
+    for (const line of buf.toString('utf8').split('\n')) pushFetchLine(line);
+  };
+  child.stdout?.on('data', onOutput);
+  child.stderr?.on('data', onOutput);
+  child.on('error', (e) => {
+    if (myRun !== fetchRunId) return;
+    fetchState = { ...fetchState, running: false, done: false, error: e.message };
+  });
+  child.on('close', (code) => {
+    if (myRun !== fetchRunId) return;
+    fetchState = {
+      ...fetchState,
+      running: false,
+      done: code === 0,
+      error: code === 0 ? null : `fetch-assets exited with code ${code}`,
+    };
+  });
+  return c.json({ ok: true });
+});
+
+app.get('/api/assets/fetch/status', (c) => c.json({ ...fetchState, available: assetFetchAvailable() }));
+
+// ---------------------------------------------------------------------------
+// project trash / restore (scene files only — never touches raw/ uploads)
+// ---------------------------------------------------------------------------
+
+const sampleTrashDir = () => path.join(APP_DATA, 'trash');
+const sampleLiveScene = () => path.join(APP_DATA, 'projects', 'sample-home', 'scene.json');
+const myHomeTrashDir = () => path.join(PRIVATE_ROOT, 'backups', 'trash');
+const myHomeLiveScene = () => path.join(PRIVATE_ROOT, 'processed', 'scene-json', 'my-home.scene.json');
+// Matches both `my-home.scene.<ts>.json` and `my-home.manual.scene.<ts>.json` —
+// a trashed/restored pair always shares one timestamp so they group as one set.
+const MY_HOME_TRASH_RE = /^my-home\.(?:scene|manual\.scene)\.(\d+)\.json$/;
+const SAMPLE_TRASH_RE = /^scene\.(\d+)\.json$/;
+
+async function newestTimestamp(dir: string, re: RegExp): Promise<number | null> {
+  if (!existsSync(dir)) return null;
+  let newest: number | null = null;
+  for (const entry of await readdir(dir)) {
+    const m = entry.match(re);
+    if (!m) continue;
+    const ts = Number(m[1]);
+    if (newest === null || ts > newest) newest = ts;
+  }
+  return newest;
+}
+
+/** Keep only the newest `keep` trashed sets (files grouped by timestamp). */
+async function pruneTrash(dir: string, re: RegExp, keep = 10): Promise<void> {
+  if (!existsSync(dir)) return;
+  const byTs = new Map<number, string[]>();
+  for (const entry of await readdir(dir)) {
+    const m = entry.match(re);
+    if (!m) continue;
+    const ts = Number(m[1]);
+    byTs.set(ts, [...(byTs.get(ts) ?? []), entry]);
+  }
+  const excess = [...byTs.keys()].sort((a, b) => b - a).slice(keep);
+  for (const ts of excess) {
+    for (const name of byTs.get(ts) ?? []) await unlink(path.join(dir, name));
+  }
+}
+
+/**
+ * Move the my-home pair (canonical + manual sidecar) into trash under one
+ * timestamp. Rolls the first rename back if the second fails, so a set is
+ * always all-or-nothing on disk.
+ */
+async function trashMyHomePair(ts: number): Promise<void> {
+  const dir = myHomeTrashDir();
+  await mkdir(dir, { recursive: true });
+  const liveScene = myHomeLiveScene();
+  const liveManual = manualScenePath();
+  const trashedScene = path.join(dir, `my-home.scene.${ts}.json`);
+  const movedScene = existsSync(liveScene);
+  if (movedScene) await rename(liveScene, trashedScene);
+  try {
+    if (existsSync(liveManual)) await rename(liveManual, path.join(dir, `my-home.manual.scene.${ts}.json`));
+  } catch (e) {
+    if (movedScene) await rename(trashedScene, liveScene); // roll back the half-moved set
+    throw e;
+  }
+}
+
+app.post('/api/projects/:id/trash', async (c) => {
+  const id = c.req.param('id');
+  if (!isProjectId(id)) return c.json({ error: 'unknown project' }, 404);
+  const ts = Date.now();
+  if (id === 'sample-home') {
+    const live = sampleLiveScene();
+    if (!existsSync(live)) return c.json({ error: 'nothing to trash' }, 404);
+    const dir = sampleTrashDir();
+    await mkdir(dir, { recursive: true });
+    await rename(live, path.join(dir, `scene.${ts}.json`));
+    await pruneTrash(dir, SAMPLE_TRASH_RE);
+    return c.json({ ok: true, trashedAt: ts });
+  }
+  if (!existsSync(myHomeLiveScene()) && !existsSync(manualScenePath())) {
+    return c.json({ error: 'nothing to trash' }, 404);
+  }
+  await trashMyHomePair(ts);
+  await pruneTrash(myHomeTrashDir(), MY_HOME_TRASH_RE);
+  return c.json({ ok: true, trashedAt: ts });
+});
+
+// Restores the set the user CLICKED (`trashedAt` in the body; newest when absent).
+// If a live scene exists it is swapped into trash first — restore must never be a
+// dead end, and nothing is ever deleted by it.
+app.post('/api/projects/:id/restore', async (c) => {
+  const id = c.req.param('id');
+  if (!isProjectId(id)) return c.json({ error: 'unknown project' }, 404);
+  const body = (await c.req.json().catch(() => ({}))) as { trashedAt?: number };
+  const requested = typeof body.trashedAt === 'number' && Number.isInteger(body.trashedAt) ? body.trashedAt : null;
+
+  if (id === 'sample-home') {
+    const dir = sampleTrashDir();
+    const ts = requested ?? (await newestTimestamp(dir, SAMPLE_TRASH_RE));
+    if (ts === null) return c.json({ error: 'nothing trashed' }, 404);
+    const trashed = path.join(dir, `scene.${ts}.json`);
+    if (!existsSync(trashed)) return c.json({ error: 'that trashed version no longer exists' }, 404);
+    const live = sampleLiveScene();
+    if (existsSync(live)) {
+      // Swap: the current live scene becomes a new trash set, never overwritten.
+      await rename(live, path.join(dir, `scene.${Date.now()}.json`));
+    }
+    await mkdir(path.dirname(live), { recursive: true });
+    await rename(trashed, live);
+    await pruneTrash(dir, SAMPLE_TRASH_RE);
+    return c.json({ ok: true, restoredAt: ts });
+  }
+
+  const dir = myHomeTrashDir();
+  const ts = requested ?? (await newestTimestamp(dir, MY_HOME_TRASH_RE));
+  if (ts === null) return c.json({ error: 'nothing trashed' }, 404);
+  const trashedScene = path.join(dir, `my-home.scene.${ts}.json`);
+  const trashedManual = path.join(dir, `my-home.manual.scene.${ts}.json`);
+  if (!existsSync(trashedScene) && !existsSync(trashedManual)) {
+    return c.json({ error: 'that trashed version no longer exists' }, 404);
+  }
+  if (existsSync(myHomeLiveScene()) || existsSync(manualScenePath())) {
+    await trashMyHomePair(Date.now()); // swap the live pair into trash first
+  }
+  const liveScene = myHomeLiveScene();
+  await mkdir(path.dirname(liveScene), { recursive: true });
+  const movedScene = existsSync(trashedScene);
+  if (movedScene) await rename(trashedScene, liveScene);
+  try {
+    if (existsSync(trashedManual)) await rename(trashedManual, manualScenePath());
+  } catch (e) {
+    if (movedScene) await rename(liveScene, trashedScene); // roll back
+    throw e;
+  }
+  await pruneTrash(dir, MY_HOME_TRASH_RE);
+  return c.json({ ok: true, restoredAt: ts });
+});
+
+app.get('/api/projects/trashed', async (c) => {
+  const out: { projectId: 'sample-home' | 'my-home'; trashedAt: number }[] = [];
+  const groups: [( 'sample-home' | 'my-home'), string, RegExp][] = [
+    ['sample-home', sampleTrashDir(), SAMPLE_TRASH_RE],
+    ['my-home', myHomeTrashDir(), MY_HOME_TRASH_RE],
+  ];
+  for (const [projectId, dir, re] of groups) {
+    if (!existsSync(dir)) continue;
+    const seen = new Set<number>();
+    for (const entry of await readdir(dir)) {
+      const m = entry.match(re);
+      if (!m) continue;
+      const ts = Number(m[1]);
+      if (seen.has(ts)) continue;
+      seen.add(ts);
+      out.push({ projectId, trashedAt: ts });
+    }
+  }
+  out.sort((a, b) => b.trashedAt - a.trashedAt);
+  return c.json({ trashed: out });
+});
+
 // Packaged app: serve the built SPA from this same origin (single origin → no
 // CORS; the Host/Origin gate above still applies). Registered AFTER every /api
 // route so those match first. Dev leaves HOMECANVAS_STATIC_DIR unset (Vite serves
@@ -403,6 +684,8 @@ if (STATIC_DIR) {
 // whole local backend.
 process.on('unhandledRejection', (e) => console.error('unhandledRejection', e));
 process.on('uncaughtException', (e) => console.error('uncaughtException', e));
+// Don't orphan a running asset-fetch child when the sidecar goes down.
+process.on('exit', () => fetchChild?.kill());
 
 serve({ fetch: app.fetch, port: PORT, hostname: '127.0.0.1' }, (info) => {
   console.log(`homecanvas sidecar listening on http://127.0.0.1:${info.port}`);

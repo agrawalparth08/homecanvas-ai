@@ -18,9 +18,10 @@ import {
 import { privateFileUrl } from '../../api';
 import { useEditor } from '../../store/editor-store';
 import { reportError } from '../../store/error-store';
+import { Button } from '../ui/Button';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { Icon } from '../ui/Icon';
-import { Mono, SectionLabel } from '../ui/primitives';
+import { FOCUS_RING, Mono, SectionLabel } from '../ui/primitives';
 import { RoomNameEditor } from './RoomNameEditor';
 import { StairControls } from './StairControls';
 
@@ -125,13 +126,13 @@ function RoomExtras({ scene, room }: { scene: HomeScene; room: Room }) {
         label="Quick wall color"
         onPick={(color) => setRoomWalls((wallId, side) => ({ type: 'set_surface_color', surface: { kind: 'wallSide', wallId, side }, color }))}
       />
-      <label className="block text-xs text-neutral-400">
+      <label className="block text-xs text-faint">
         Add furniture
         <div className="mt-1 flex gap-1.5">
           <select
             value={furnKey}
             onChange={(e) => setFurnKey(e.target.value as CatalogKey)}
-            className="min-w-0 flex-1 rounded border border-panel-border bg-neutral-900 px-2 py-1.5 text-sm text-neutral-100"
+            className={`min-w-0 flex-1 rounded-[9px] border border-line bg-field px-2 py-1.5 text-sm text-ink ${FOCUS_RING}`}
           >
             {Object.entries(CATALOG).map(([k, v]) => (
               <option key={k} value={k}>
@@ -139,27 +140,33 @@ function RoomExtras({ scene, room }: { scene: HomeScene; room: Room }) {
               </option>
             ))}
           </select>
-          <button onClick={addFurniture} className="rounded-lg border border-panel-border bg-panel px-3 text-xs font-medium text-neutral-200 transition-colors hover:border-neutral-700 hover:text-neutral-100">
+          <Button variant="secondary" size="sm" onClick={addFurniture}>
             Add
-          </button>
+          </Button>
         </div>
       </label>
-      <button
-        onClick={() => void furnishRoom()}
-        disabled={locked || furnishing}
-        title={locked ? 'Unlock the room first' : bridgeOn ? 'Ask your local Claude to furnish this room' : 'Drop a set of suggested pieces into this room'}
-        className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-panel-border bg-panel px-2 py-2.5 text-xs font-semibold text-neutral-200 transition-colors enabled:hover:border-neutral-700 enabled:hover:text-neutral-100 disabled:opacity-45"
-      >
-        <Icon name="plus" className="text-[15px]" /> {furnishing ? 'Asking Claude…' : bridgeOn ? 'Furnish (Claude)' : 'Furnish this room'}
-      </button>
-      <button
-        onClick={autoDesign}
-        disabled={locked}
-        title={locked ? 'Unlock the room first' : `Apply ${designPackName(room)} + place furniture`}
-        className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-accent px-2 py-2.5 text-xs font-semibold text-white shadow-sm shadow-accent/25 transition-colors enabled:hover:bg-[#403bd6] disabled:opacity-45"
-      >
-        <Icon name="sparkles" className="text-[15px]" /> Auto-design this room
-      </button>
+      {/* title lives on a wrapper: Button's disabled:pointer-events-none would
+          otherwise swallow the tooltip exactly when it explains WHY it's dead. */}
+      <span title={locked ? 'Unlock the room first' : bridgeOn ? 'Ask your local Claude to furnish this room' : 'Drop a set of suggested pieces into this room'} className="block w-full">
+        <Button
+          variant="secondary"
+          onClick={() => void furnishRoom()}
+          disabled={locked || furnishing}
+          className="w-full"
+        >
+          <Icon name="plus" className="text-[15px]" /> {furnishing ? 'Asking Claude…' : bridgeOn ? 'Furnish (Claude)' : 'Furnish this room'}
+        </Button>
+      </span>
+      <span title={locked ? 'Unlock the room first' : `Apply ${designPackName(room)} + place furniture`} className="block w-full">
+        <Button
+          variant="primary"
+          onClick={autoDesign}
+          disabled={locked}
+          className="w-full hc-glow"
+        >
+          <Icon name="sparkles" className="text-[15px]" /> Auto-design this room
+        </Button>
+      </span>
     </>
   );
 }
@@ -176,17 +183,17 @@ function ReferencesSection({ scene, selectedRoomId }: { scene: HomeScene; select
   const shown = selectedRoomId ? refs.filter((r) => !r.roomId || r.roomId === selectedRoomId) : refs;
   if (shown.length === 0) return null;
   return (
-    <div className="border-t border-panel-border pt-3">
-      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">References</h3>
-      <div className="grid grid-cols-2 gap-2">
+    <div className="border-t border-line pt-3">
+      <SectionLabel>References</SectionLabel>
+      <div className="mt-2.5 grid grid-cols-2 gap-2">
         {shown.map((r) => (
-          <div key={r.id} className="rounded-lg border border-panel-border bg-panel p-1.5">
+          <div key={r.id} className="rounded-[13px] border border-line bg-panel p-1.5">
             <img src={privateFileUrl(r.filePath)} alt={r.kind} className="h-16 w-full rounded-md object-cover" />
             <div className="mt-1 flex items-center justify-between">
-              <span className="text-[10px] uppercase tracking-wide text-neutral-500">{r.kind}</span>
+              <SectionLabel>{r.kind}</SectionLabel>
               <button
                 onClick={() => applyPatch(makePatch('Remove reference', [{ type: 'remove_reference_image', imageId: r.id }]))}
-                className="flex h-5 w-5 items-center justify-center rounded text-[13px] text-neutral-500 hover:bg-neutral-800 hover:text-rose-600"
+                className={`flex h-5 w-5 items-center justify-center rounded text-[13px] text-faint hover:bg-soft hover:text-rose-600 ${FOCUS_RING}`}
                 title="Remove reference"
               >
                 <Icon name="close" />
@@ -195,7 +202,7 @@ function ReferencesSection({ scene, selectedRoomId }: { scene: HomeScene; select
             {r.extractedPalette && r.extractedPalette.length > 0 && (
               <div className="mt-1 flex gap-0.5">
                 {r.extractedPalette.slice(0, 6).map((c, k) => (
-                  <span key={k} className="h-3 flex-1 rounded-sm" style={{ background: c }} title={c} />
+                  <span key={k} className="h-3 flex-1 rounded" style={{ background: c }} title={c} />
                 ))}
               </div>
             )}
@@ -261,11 +268,11 @@ function MaterialSelect({
 
 function ColorRow({ label, onPick }: { label: string; onPick: (color: string) => void }) {
   return (
-    <label className="flex items-center justify-between text-xs text-neutral-400">
+    <label className="flex items-center justify-between text-xs text-dim">
       {label}
       <input
         type="color"
-        className="h-7 w-12 cursor-pointer rounded border border-panel-border bg-transparent"
+        className="h-7 w-12 cursor-pointer rounded border border-line bg-transparent"
         onChange={(e) => onPick(e.target.value)}
       />
     </label>
@@ -290,15 +297,15 @@ function LockToggle({ scene, entityId }: { scene: HomeScene; entityId: string })
   return (
     <button
       onClick={toggle}
-      className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors ${
+      className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors ${FOCUS_RING} ${
         locked
-          ? 'border-amber-300 bg-amber-50 text-amber-700'
-          : 'border-panel-border bg-panel text-neutral-300 hover:border-neutral-700 hover:text-neutral-100'
+          ? 'border-[#e9c89e] bg-[#fbf0e3] text-[#9a5a1e]'
+          : 'border-line bg-panel text-dim hover:bg-soft hover:text-ink'
       }`}
     >
       <Icon name={locked ? 'lock' : 'unlock'} className="text-[15px]" />
       <span className="font-medium">{locked ? 'Locked' : 'Unlocked'}</span>
-      <span className={locked ? 'text-amber-600' : 'text-neutral-500'}>
+      <span className={locked ? 'text-warn' : 'text-faint'}>
         {locked ? '· suggestions skip this' : '· click to lock'}
       </span>
     </button>

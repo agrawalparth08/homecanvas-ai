@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -8,6 +8,7 @@ import {
   fetchProjects,
   fetchStorageStats,
   fetchTrashedProjects,
+  importBundleApi,
   renameProjectApi,
   restoreProject,
   startAssetFetch,
@@ -154,6 +155,7 @@ function ProjectCard({
   onTrashRequest,
   onRename,
   onDuplicate,
+  onExport,
   duplicating,
 }: {
   p: Project;
@@ -164,6 +166,8 @@ function ProjectCard({
   onRename?: (p: Project) => void;
   /** Omit to hide the hover duplicate button. */
   onDuplicate?: (p: Project) => void;
+  /** Omit to hide the hover .hcproj bundle download button. */
+  onExport?: (p: Project) => void;
   duplicating?: boolean;
 }) {
   const builtIn = isBuiltInProject(p.id);
@@ -195,6 +199,21 @@ function ProjectCard({
               className={`flex h-7 w-7 items-center justify-center rounded-[7px] bg-panel text-dim shadow-[0_2px_6px_-2px_rgba(20,22,40,0.25)] transition hover:text-accent disabled:opacity-45 ${FOCUS_RING}`}
             >
               <Icon name="layers" className="text-[13px]" />
+            </button>
+          )}
+          {onExport && p.hasScene && (
+            <button
+              type="button"
+              title="Download project bundle (.hcproj)"
+              aria-label={`Download ${p.name} as a project bundle`}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onExport(p);
+              }}
+              className={`flex h-7 w-7 items-center justify-center rounded-[7px] bg-panel text-dim shadow-[0_2px_6px_-2px_rgba(20,22,40,0.25)] transition hover:text-accent ${FOCUS_RING}`}
+            >
+              <Icon name="upload" className="text-[13px]" />
             </button>
           )}
           {onRename && !builtIn && (
@@ -617,6 +636,39 @@ export function HomePage() {
     }
   };
 
+  const onExportBundle = (p: Project) => {
+    const a = document.createElement('a');
+    a.href = `/api/projects/${p.id}/bundle`;
+    a.download = '';
+    a.click();
+  };
+
+  const importInputRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
+  const onImportFile = async (file: File | undefined) => {
+    if (!file) return;
+    setImporting(true);
+    try {
+      let bundle: unknown;
+      try {
+        bundle = JSON.parse(await file.text());
+      } catch {
+        reportError(`${file.name} isn't valid JSON — expected a .hcproj bundle.`, { kind: 'rejected' });
+        return;
+      }
+      const result = await importBundleApi(bundle);
+      if ('error' in result) {
+        reportError(`Couldn't import ${file.name}: ${result.error}`, { kind: 'rejected' });
+        return;
+      }
+      invalidateAfterProjectChange();
+      navigate(`/design/${result.project.id}`);
+    } finally {
+      setImporting(false);
+      if (importInputRef.current) importInputRef.current.value = '';
+    }
+  };
+
   const onFetchAssets = async () => {
     setFetchStarting(true);
     const ok = await startAssetFetch();
@@ -698,6 +750,23 @@ export function HomePage() {
           className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] border border-line bg-panel text-dim transition hover:bg-soft hover:text-ink ${FOCUS_RING}`}
         >
           <Icon name="user" className="text-[16px]" strokeWidth={1.8} />
+        </button>
+        <input
+          ref={importInputRef}
+          type="file"
+          accept=".hcproj,application/json"
+          className="hidden"
+          onChange={(e) => void onImportFile(e.target.files?.[0])}
+        />
+        <button
+          type="button"
+          onClick={() => importInputRef.current?.click()}
+          disabled={importing}
+          title="Import a project bundle (.hcproj)"
+          className={`inline-flex h-9 flex-shrink-0 items-center gap-2 rounded-[10px] border border-line bg-panel px-3.5 text-[13.5px] font-semibold text-dim transition hover:bg-soft hover:text-ink disabled:opacity-50 ${FOCUS_RING}`}
+        >
+          <Icon name="upload" className="text-[15px] rotate-180" strokeWidth={2} />
+          <span className="hidden sm:inline">{importing ? 'Importing…' : 'Import'}</span>
         </button>
         <button
           type="button"
@@ -792,6 +861,7 @@ export function HomePage() {
                   onTrashRequest={setConfirmTrash}
                   onRename={onRename}
                   onDuplicate={onDuplicate}
+                  onExport={onExportBundle}
                   duplicating={duplicatingId === p.id}
                 />
               ))}
@@ -823,6 +893,7 @@ export function HomePage() {
                     onTrashRequest={setConfirmTrash}
                     onRename={onRename}
                     onDuplicate={onDuplicate}
+                    onExport={onExportBundle}
                     duplicating={duplicatingId === p.id}
                   />
                 ))}

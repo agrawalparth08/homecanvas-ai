@@ -267,9 +267,12 @@ def main():
         cam_data.lens = 24  # wide interior lens for inside-the-room shots
         # Interior shots are enclosed — the sun/world barely reaches them. Add a
         # soft ceiling-height area light over the room centre so the shot reads.
+        # 220W washed interiors out to near-white; ~90W over the target with a
+        # slightly warm tint keeps white walls readable and shadows soft.
         fill_data = bpy.data.lights.new("InteriorFill", type="AREA")
-        fill_data.energy = 220.0
+        fill_data.energy = 90.0
         fill_data.size = 2.4
+        fill_data.color = (1.0, 0.96, 0.9)
         fill = bpy.data.objects.new("InteriorFill", fill_data)
         fill.location = (tx, ty, tz + 1.5)
         bpy.context.collection.objects.link(fill)

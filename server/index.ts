@@ -13,6 +13,7 @@ import { autoAnswer, bridgeAutoEnabled } from './bridge-auto';
 import { buildSceneExport } from './export';
 import { buildViewerHtml, viewerExportAvailable } from './viewer-export';
 import { batchFilePath, batchStatus, startBatch } from './render-batch';
+import { exportBundle, importBundle } from './bundles';
 import { detectBlender, readRender, renderWithBlender } from './adapters/blender';
 import { cubicasaAvailable, runCubicasaSidecar } from './adapters/cubicasa';
 import { DesignVariantSchema, HomeSceneSchema } from '../lib/scene/schemas';
@@ -650,6 +651,28 @@ app.post('/api/projects', async (c) => {
   const kind = body.kind === 'apartment' ? 'apartment' : 'home';
   const meta = await createProject(body.name ?? '', kind);
   return c.json({ ok: true, project: meta });
+});
+
+// .hcproj bundles — portable single-file project export/import (archive a
+// client job, move machines, hand off). Import always creates a new project.
+app.get('/api/projects/:id/bundle', async (c) => {
+  const id = c.req.param('id');
+  if (!isProjectId(id)) return c.json({ error: 'unknown project' }, 404);
+  const bundle = await exportBundle(id);
+  if (!bundle) return c.json({ error: 'no scene to export' }, 404);
+  const safe = bundle.name.replace(/[^a-zA-Z0-9-_ ]/g, '').trim().replace(/\s+/g, '-').toLowerCase() || 'project';
+  return c.body(JSON.stringify(bundle, null, 2), 200, {
+    'Content-Type': 'application/json',
+    'Content-Disposition': `attachment; filename="${safe}.hcproj"`,
+  });
+});
+
+app.post('/api/projects/import', async (c) => {
+  const raw = await c.req.json().catch(() => null);
+  if (raw === null) return c.json({ error: 'not valid JSON' }, 400);
+  const result = await importBundle(raw);
+  if (!result.ok) return c.json({ error: result.reason }, 400);
+  return c.json({ ok: true, project: result.project, variantsImported: result.variantsImported, variantsSkipped: result.variantsSkipped });
 });
 
 app.post('/api/projects/:id/rename', async (c) => {

@@ -2,7 +2,7 @@ import { existsSync, readdirSync } from 'node:fs';
 import { copyFile, mkdir, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { polygonArea } from '../lib/geometry/rooms';
-import type { HomeScene, Room } from '../lib/scene/schemas';
+import type { FurnitureObject, HomeScene, Room } from '../lib/scene/schemas';
 import { detectBlender, renderWithBlender } from './adapters/blender';
 import { APP_DATA, ASSET_CACHE } from './storage';
 
@@ -51,7 +51,11 @@ export function batchStatus(): BatchState {
   return { ...state, files: [...state.files] };
 }
 
-function roomCamera(room: Room): { cam: string; target: string } {
+// Wall-hugging categories don't make a view: standing "far from the rug" or
+// aiming at curtains says nothing about where the clear sightline is.
+const NON_BLOCKING = new Set(['rug', 'curtains', 'light', 'decor']);
+
+function roomCamera(room: Room, objects: FurnitureObject[]): { cam: string; target: string } {
   const pts = room.boundary.outer;
   let minX = Infinity;
   let minY = Infinity;
@@ -63,14 +67,48 @@ function roomCamera(room: Room): { cam: string; target: string } {
     maxX = Math.max(maxX, p.x);
     maxY = Math.max(maxY, p.y);
   }
-  const cx = ((minX + maxX) / 2) * MM;
-  const cy = ((minY + maxY) / 2) * MM;
-  // Camera in the corner with the longest diagonal, pulled 12% inside the room,
-  // at standing eye height; aimed slightly below eye level at the room centre.
-  const inset = 0.12;
-  const camX = (minX + (maxX - minX) * inset) * MM;
-  const camY = (minY + (maxY - minY) * inset) * MM;
-  return { cam: `${camX.toFixed(3)},${camY.toFixed(3)},1.55`, target: `${cx.toFixed(3)},${cy.toFixed(3)},1.1` };
+  const cx = (minX + maxX) / 2;
+  const cy = (minY + maxY) / 2;
+  const items = objects.filter((o) => o.roomId === room.id && !NON_BLOCKING.has(o.category));
+
+  // Candidate: each corner pulled 12% inside the room, at standing eye height.
+  // Pick the one FARTHEST from the nearest furniture piece — a camera jammed
+  // behind a kitchen counter run renders nothing but the counter. Empty room:
+  // any corner works, take the first.
+  const w = maxX - minX;
+  const h = maxY - minY;
+  const corners: [number, number][] = [
+    [minX + w * 0.12, minY + h * 0.12],
+    [maxX - w * 0.12, minY + h * 0.12],
+    [minX + w * 0.12, maxY - h * 0.12],
+    [maxX - w * 0.12, maxY - h * 0.12],
+  ];
+  let best = corners[0]!;
+  let bestScore = -Infinity;
+  for (const corner of corners) {
+    const score = items.length
+      ? Math.min(...items.map((o) => Math.hypot(corner[0] - o.transform.x, corner[1] - o.transform.y)))
+      : 0;
+    if (score > bestScore) {
+      bestScore = score;
+      best = corner;
+    }
+  }
+
+  // Aim at the furniture (what the client cares about), pulled 35% toward the
+  // room centre so a wall-hugging wardrobe doesn't drag the view into a wall.
+  let tx = cx;
+  let ty = cy;
+  if (items.length) {
+    const fx = items.reduce((s, o) => s + o.transform.x, 0) / items.length;
+    const fy = items.reduce((s, o) => s + o.transform.y, 0) / items.length;
+    tx = fx + (cx - fx) * 0.35;
+    ty = fy + (cy - fy) * 0.35;
+  }
+  return {
+    cam: `${(best[0] * MM).toFixed(3)},${(best[1] * MM).toFixed(3)},1.55`,
+    target: `${(tx * MM).toFixed(3)},${(ty * MM).toFixed(3)},1.05`,
+  };
 }
 
 const slug = (s: string) => s.replace(/[^a-zA-Z0-9-_ ]/g, '').trim().replace(/\s+/g, '-').toLowerCase() || 'render';
@@ -82,7 +120,7 @@ function buildJobs(scene: HomeScene): BatchJob[] {
     for (const room of floor.rooms) {
       // Tiny slivers (closets, shafts) make degenerate interiors — skip < 2 m².
       if (Math.abs(polygonArea(room.boundary.outer)) * 1e-6 < 2) continue;
-      jobs.push({ label: `${slug(floor.name)}-${slug(room.name)}`, ...roomCamera(room) });
+      jobs.push({ label: `${slug(floor.name)}-${slug(room.name)}`, ...roomCamera(room, floor.objects) });
     }
   }
   return jobs;

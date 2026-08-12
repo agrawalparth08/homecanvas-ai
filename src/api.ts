@@ -303,6 +303,23 @@ export async function fetchProjects(): Promise<ProjectMeta[]> {
   }
 }
 
+/** Import a .hcproj bundle (parsed JSON). Returns the new project or an error reason. */
+export async function importBundleApi(bundle: unknown): Promise<{ project: ProjectMeta } | { error: string }> {
+  try {
+    const res = await fetch('/api/projects/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(bundle),
+    });
+    const data = (await res.json().catch(() => ({}))) as { project?: ProjectMeta; error?: string };
+    if (!res.ok || !data.project) return { error: data.error ?? `import failed (${res.status})` };
+    return { project: data.project };
+  } catch (e) {
+    traceDevError('importBundleApi', e, 'network');
+    return { error: 'is the local server running?' };
+  }
+}
+
 /** Create a new project (server generates the id). Returns null on failure. */
 export async function createProjectApi(name: string, kind?: 'home' | 'apartment'): Promise<ProjectMeta | null> {
   try {

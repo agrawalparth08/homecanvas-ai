@@ -1,0 +1,88 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg:#eef0f4; --panel:#fff; --line:#e4e6ec; --ink:#1b1d24; --dim:#646b78;
+    --faint:#9aa0ac; --accent:#4b46e5; --accent2:#6f6af0; --wash:#eeedfd;
+  }
+  html,body { width:1920px; height:1080px; font-family:'Inter',-apple-system,'Helvetica Neue',Arial,sans-serif; -webkit-font-smoothing:antialiased; }
+  .stage { width:1920px; height:1080px; position:relative; overflow:hidden; }
+
+  /* ---- full brand card (title/outro) ---- */
+  .card { background:
+      radial-gradient(1200px 700px at 78% 12%, rgba(111,106,240,.14), transparent 60%),
+      radial-gradient(900px 600px at 8% 92%, rgba(192,138,62,.08), transparent 55%),
+      var(--bg);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:26px; }
+  .brandrow { display:flex; align-items:center; gap:20px; }
+  .logo { width:74px; height:74px; border-radius:19px; background:var(--accent);
+    display:flex; align-items:center; justify-content:center; box-shadow:0 18px 44px -14px rgba(75,70,229,.5); }
+  .logo svg { width:40px; height:40px; }
+  .wordmark { font-size:62px; font-weight:800; letter-spacing:-1.6px; color:var(--ink); }
+  .wordmark b { color:var(--accent); font-weight:800; }
+  .tagline { font-size:33px; font-weight:500; color:var(--dim); letter-spacing:-.3px; max-width:1150px; text-align:center; line-height:1.32; }
+  .chip { margin-top:12px; font-size:23px; font-weight:700; color:var(--accent); background:var(--wash);
+    border:1px solid #d8d6f7; padding:12px 24px; border-radius:12px; letter-spacing:.2px; }
+  .kick { font-size:20px; font-weight:800; letter-spacing:3px; color:var(--faint); text-transform:uppercase; }
+
+  /* ---- lower-third caption (transparent bg) ---- */
+  .cap { background:transparent; }
+  .lower { position:absolute; left:80px; bottom:84px; max-width:1180px;
+    background:var(--panel); border:1px solid var(--line); border-radius:22px;
+    padding:30px 40px 34px; box-shadow:0 40px 90px -30px rgba(20,22,40,.5), 0 2px 0 rgba(255,255,255,.6) inset; }
+  .lower .k { font-size:20px; font-weight:800; letter-spacing:2.5px; text-transform:uppercase; color:var(--accent); margin-bottom:12px; }
+  .lower .t { font-size:52px; font-weight:800; letter-spacing:-1px; color:var(--ink); line-height:1.06; }
+  .lower .s { margin-top:14px; font-size:29px; font-weight:500; color:var(--dim); line-height:1.34; letter-spacing:-.2px; }
+  .accentbar { position:absolute; left:0; top:26px; bottom:26px; width:6px; border-radius:6px;
+    background:linear-gradient(180deg,var(--accent),var(--accent2)); }
+  .lower { padding-left:56px; }
+  .tag { position:absolute; left:80px; top:64px; display:flex; align-items:center; gap:13px; }
+  .tag .l { width:40px; height:40px; border-radius:11px; background:var(--accent); display:flex; align-items:center; justify-content:center; box-shadow:0 10px 26px -10px rgba(75,70,229,.55); }
+  .tag .l svg { width:22px; height:22px; }
+  .tag .w { font-size:26px; font-weight:800; letter-spacing:-.6px; color:var(--ink); text-shadow:0 1px 10px rgba(238,240,244,.9); }
+  .tag .w b { color:var(--accent); }
+  .step { position:absolute; right:80px; bottom:96px; font-size:24px; font-weight:800; letter-spacing:1px; color:var(--ink); }
+  .step .n { color:var(--accent); }
+  .step .d { color:var(--faint); }
+</style>
+</head>
+<body>
+<div class="stage" id="stage"></div>
+<script>
+const HOME = '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg>';
+const P = new URLSearchParams(location.search);
+const kind = P.get('kind');
+const stage = document.getElementById('stage');
+
+function tagWordmark() {
+  return '<div class="tag"><span class="l">'+HOME+'</span><span class="w">HomeCanvas <b>AI</b></span></div>';
+}
+
+if (kind === 'title') {
+  stage.className = 'stage card';
+  stage.innerHTML =
+    '<div class="kick">LOCAL-FIRST HOME DESIGN</div>'+
+    '<div class="brandrow"><span class="logo">'+HOME+'</span><span class="wordmark">HomeCanvas <b>AI</b></span></div>'+
+    '<div class="tagline">Turn any floor plan into a designed, walkable 3D home — entirely on your own machine.</div>';
+} else if (kind === 'outro') {
+  stage.className = 'stage card';
+  stage.innerHTML =
+    '<div class="brandrow"><span class="logo">'+HOME+'</span><span class="wordmark">HomeCanvas <b>AI</b></span></div>'+
+    '<div class="tagline">Local-first home design for independent designers.<br>Trace, style, render, and hand off — without your work ever leaving your machine.</div>'+
+    '<div class="chip">tryhomecanvas.com</div>';
+} else {
+  stage.className = 'stage cap';
+  const k = P.get('k') || '', t = P.get('t') || '', s = P.get('s') || '';
+  const n = P.get('n') || '', d = P.get('d') || '';
+  stage.innerHTML =
+    tagWordmark() +
+    '<div class="lower"><span class="accentbar"></span>'+
+      '<div class="k">'+k+'</div><div class="t">'+t+'</div><div class="s">'+s+'</div></div>'+
+    '<div class="step"><span class="n">'+n+'</span> <span class="d">/ '+d+'</span></div>';
+}
+</script>
+</body>
+</html>

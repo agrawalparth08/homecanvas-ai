@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router';
+import { fetchProjects } from '../api';
 import { SceneCanvas } from '../components/canvas/SceneCanvas';
 import { StageChrome } from '../components/canvas/StageChrome';
 import { BeforeAfterCompare } from '../components/canvas/BeforeAfterCompare';
@@ -14,27 +16,43 @@ import { Icon } from '../components/ui/Icon';
 import { useEditor } from '../store/editor-store';
 import type { ProjectId } from '../api';
 
-function GuidedEmptyState() {
+/** Any valid project slug (built-ins + generic app-data projects) — mirrors the server's isProjectId. */
+const PROJECT_ID_RE = /^[a-z0-9][a-z0-9-]{0,40}$/;
+
+function GuidedEmptyState({ projectId }: { projectId: ProjectId }) {
   const startFromSample = useEditor((s) => s.startFromSample);
+  const isMyHome = projectId === 'my-home';
   return (
     <div className="flex h-full items-center justify-center p-6">
       <div className="hc-hero max-w-md rounded-2xl border border-line p-6 hc-card">
-        <h2 className="text-lg font-bold text-ink">No “My Home” scene yet</h2>
-        <p className="mt-2 text-sm text-dim">
-          The app looked for{' '}
-          <code className="font-mono text-xs">private-home-inputs/processed/scene-json/my-home.scene.json</code> and
-          didn't find one. Three ways to get going:
-        </p>
-        <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-dim">
-          <li>
-            Drop your floor plan into <code className="font-mono text-xs">private-home-inputs/raw/</code> — the upload
-            &amp; tracing wizard turns it into your home.
-          </li>
-          <li>Start from the sample home and reshape it room by room.</li>
-          <li>
-            Run <code className="font-mono text-xs">npm run init:private</code> if the folder doesn't exist yet.
-          </li>
-        </ol>
+        {isMyHome ? (
+          <>
+            <h2 className="text-lg font-bold text-ink">No “My Home” scene yet</h2>
+            <p className="mt-2 text-sm text-dim">
+              The app looked for{' '}
+              <code className="font-mono text-xs">private-home-inputs/processed/scene-json/my-home.scene.json</code>{' '}
+              and didn't find one. Three ways to get going:
+            </p>
+            <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-dim">
+              <li>
+                Drop your floor plan into <code className="font-mono text-xs">private-home-inputs/raw/</code> — the
+                upload &amp; tracing wizard turns it into your home.
+              </li>
+              <li>Start from the sample home and reshape it room by room.</li>
+              <li>
+                Run <code className="font-mono text-xs">npm run init:private</code> if the folder doesn't exist yet.
+              </li>
+            </ol>
+          </>
+        ) : (
+          <>
+            <h2 className="text-lg font-bold text-ink">No scene yet — trace a plan to start</h2>
+            <p className="mt-2 text-sm text-dim">
+              This project doesn't have a scene yet. Trace a floor plan to build one, or start from the sample home
+              and reshape it room by room.
+            </p>
+          </>
+        )}
         <div className="mt-5 flex gap-2.5">
           <button
             onClick={() => void startFromSample()}
@@ -43,10 +61,10 @@ function GuidedEmptyState() {
             Start from sample home
           </button>
           <Link
-            to="/upload"
+            to={isMyHome ? '/upload' : '/verify'}
             className="rounded-[10px] border border-line bg-panel px-4 py-2.5 text-sm font-semibold text-ink transition hover:bg-soft"
           >
-            Upload a plan
+            {isMyHome ? 'Upload a plan' : 'Trace a plan'}
           </Link>
         </div>
       </div>
@@ -56,7 +74,12 @@ function GuidedEmptyState() {
 
 export function DesignPage() {
   const params = useParams();
-  const projectId = (params['projectId'] === 'my-home' ? 'my-home' : 'sample-home') as ProjectId;
+  const rawId = params['projectId'];
+  const projectId: ProjectId = rawId && PROJECT_ID_RE.test(rawId) ? rawId : 'sample-home';
+  // Scene-less projects (fresh creates) still deserve their display name in the
+  // header, not the raw slug.
+  const { data: projectList } = useQuery({ queryKey: ['projects'], queryFn: fetchProjects, staleTime: 30_000 });
+  const projectName = projectList?.find((p) => p.id === projectId)?.name;
   const loadProject = useEditor((s) => s.loadProject);
   const loading = useEditor((s) => s.loading);
   const guidedEmpty = useEditor((s) => s.guidedEmpty);
@@ -104,7 +127,7 @@ export function DesignPage() {
           </span>
           <span className="hidden sm:inline">HomeCanvas AI</span>
         </Link>
-        <span className="truncate text-[14px] text-dim">{scene?.name ?? projectId}</span>
+        <span className="truncate text-[14px] text-dim">{scene?.name ?? projectName ?? projectId}</span>
         <span className="hidden h-[22px] w-px flex-shrink-0 bg-line sm:block" />
         <Link to="/verify" className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-[9px] bg-wash px-3 py-[7px] text-[13px] font-semibold text-accent transition hover:bg-[#e3e1fb]">
           <Icon name="wand" className="text-[14px]" strokeWidth={2} /> <span className="hidden md:inline">Trace plan</span>
@@ -123,7 +146,7 @@ export function DesignPage() {
           <div className="flex flex-1 items-center justify-center text-neutral-500">Loading scene…</div>
         ) : guidedEmpty ? (
           <div className="flex-1">
-            <GuidedEmptyState />
+            <GuidedEmptyState projectId={projectId} />
           </div>
         ) : (
           <>

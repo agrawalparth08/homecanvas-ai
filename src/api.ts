@@ -5,7 +5,16 @@ import { traceDevError } from './store/error-store';
 
 /** Thin client for the local sidecar (proxied via /api). */
 
-export type ProjectId = 'sample-home' | 'my-home';
+export type ProjectId = string;
+
+/** Server-side project metadata, as returned by GET /api/projects. */
+export interface ProjectMeta {
+  id: ProjectId;
+  name: string;
+  kind: 'home' | 'apartment' | 'sample';
+  createdAt: string;
+  hasScene: boolean;
+}
 
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
@@ -266,6 +275,7 @@ export async function restoreProject(projectId: ProjectId, trashedAt?: number): 
 
 export interface TrashedProject {
   projectId: ProjectId;
+  name: string;
   trashedAt: number;
 }
 
@@ -276,5 +286,68 @@ export async function fetchTrashedProjects(): Promise<TrashedProject[]> {
   } catch (e) {
     traceDevError('fetchTrashedProjects', e, 'network');
     return [];
+  }
+}
+
+// ---------------------------------------------------------------------------
+// project CRUD (multi-project workspace)
+// ---------------------------------------------------------------------------
+
+export async function fetchProjects(): Promise<ProjectMeta[]> {
+  try {
+    const data = await json<{ projects: ProjectMeta[] }>(await fetch('/api/projects'));
+    return data.projects;
+  } catch (e) {
+    traceDevError('fetchProjects', e, 'network');
+    return [];
+  }
+}
+
+/** Create a new project (server generates the id). Returns null on failure. */
+export async function createProjectApi(name: string, kind?: 'home' | 'apartment'): Promise<ProjectMeta | null> {
+  try {
+    const res = await fetch('/api/projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, ...(kind ? { kind } : {}) }),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { ok: boolean; project: ProjectMeta };
+    return data.project;
+  } catch (e) {
+    traceDevError('createProjectApi', e, 'network');
+    return null;
+  }
+}
+
+/** Rename a project (400 for built-ins — sample-home / my-home). */
+export async function renameProjectApi(projectId: ProjectId, name: string): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/projects/${projectId}/rename`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    return res.ok;
+  } catch (e) {
+    traceDevError('renameProjectApi', e, 'network');
+    return false;
+  }
+}
+
+/** Duplicate a project's scene into a new project (404 if the source has no scene). */
+export async function duplicateProjectApi(projectId: ProjectId, name?: string): Promise<ProjectMeta | null> {
+  try {
+    const res = await fetch(`/api/projects/${projectId}/duplicate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(name ? { name } : {}),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { ok: boolean; project: ProjectMeta };
+    return data.project;
+  } catch (e) {
+    traceDevError('duplicateProjectApi', e, 'network');
+    return null;
   }
 }

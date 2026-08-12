@@ -1,17 +1,21 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  createProjectApi,
+  duplicateProjectApi,
   fetchAssetFetchStatus,
-  fetchPrivateManifest,
+  fetchProjects,
   fetchStorageStats,
   fetchTrashedProjects,
+  renameProjectApi,
   restoreProject,
   startAssetFetch,
   trashProject,
-  type ProjectId,
+  type ProjectMeta,
   type TrashedProject,
 } from '../api';
+import { Button } from '../components/ui/Button';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Icon, type IconName } from '../components/ui/Icon';
 import { Chip, FOCUS_RING, Mono, SectionLabel, Segmented } from '../components/ui/primitives';
@@ -26,6 +30,7 @@ interface Project {
   to: string;
   name: string;
   kind: Kind;
+  hasScene: boolean;
   stats: string;
   edited: string;
   gradient: string;
@@ -33,7 +38,41 @@ interface Project {
   badge?: string;
 }
 
-const PROJECT_LABEL: Record<ProjectId, string> = { 'sample-home': 'Sample Penthouse', 'my-home': 'My Home' };
+/** Card background gradients, cycled by list index so the grid reads as varied. */
+const GRADIENTS = [
+  'linear-gradient(160deg,#eef0f6,#e2e5ee)',
+  'linear-gradient(160deg,#efe7da,#e6dcc8)',
+  'linear-gradient(160deg,#e3ecf0,#d3e2e8)',
+  'linear-gradient(160deg,#eee7f2,#e2d8ec)',
+];
+
+function isBuiltInProject(id: string): boolean {
+  return id === 'sample-home' || id === 'my-home';
+}
+
+function formatCreated(iso: string): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+/** Server ProjectMeta -> card view model. Stats line is mono (kind + created date). */
+function toProject(meta: ProjectMeta, index: number): Project {
+  const created = formatCreated(meta.createdAt);
+  return {
+    id: meta.id,
+    to: `/design/${meta.id}`,
+    name: meta.name,
+    kind: meta.kind,
+    hasScene: meta.hasScene,
+    stats: created ? `${meta.kind} · ${created}` : meta.kind,
+    edited: meta.hasScene ? 'Ready to open' : 'No scene yet — trace a plan',
+    gradient: GRADIENTS[index % GRADIENTS.length]!,
+    glyph: index,
+    ...(meta.kind === 'sample' ? { badge: 'SAMPLE' } : {}),
+  };
+}
 
 /** Human-readable byte count for the storage meter (mono, e.g. "1.2 GB"). */
 function formatBytes(bytes: number): string {
@@ -86,12 +125,21 @@ function ProjectCard({
   p,
   onOpen,
   onTrashRequest,
+  onRename,
+  onDuplicate,
+  duplicating,
 }: {
   p: Project;
   onOpen: (id: string) => void;
   /** Omit to hide the hover trash button (e.g. the read-only Templates copy). */
   onTrashRequest?: (p: Project) => void;
+  /** Omit to hide the hover rename button. Always hidden for built-ins regardless. */
+  onRename?: (p: Project) => void;
+  /** Omit to hide the hover duplicate button. */
+  onDuplicate?: (p: Project) => void;
+  duplicating?: boolean;
 }) {
+  const builtIn = isBuiltInProject(p.id);
   return (
     <Link
       to={p.to}
@@ -105,21 +153,54 @@ function ProjectCard({
             {p.badge}
           </span>
         )}
-        {onTrashRequest && (
-          <button
-            type="button"
-            title="Move to trash"
-            aria-label={`Move ${p.name} to trash`}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onTrashRequest(p);
-            }}
-            className={`absolute right-2.5 top-2.5 flex h-7 w-7 items-center justify-center rounded-[7px] bg-panel text-dim opacity-0 shadow-[0_2px_6px_-2px_rgba(20,22,40,0.25)] transition hover:text-rose-600 group-hover:opacity-100 ${FOCUS_RING}`}
-          >
-            <Icon name="trash" className="text-[13px]" />
-          </button>
-        )}
+        <div className="absolute right-2.5 top-2.5 flex gap-1.5 opacity-0 transition group-hover:opacity-100">
+          {onDuplicate && p.hasScene && (
+            <button
+              type="button"
+              title="Duplicate"
+              aria-label={`Duplicate ${p.name}`}
+              disabled={duplicating}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onDuplicate(p);
+              }}
+              className={`flex h-7 w-7 items-center justify-center rounded-[7px] bg-panel text-dim shadow-[0_2px_6px_-2px_rgba(20,22,40,0.25)] transition hover:text-accent disabled:opacity-45 ${FOCUS_RING}`}
+            >
+              <Icon name="layers" className="text-[13px]" />
+            </button>
+          )}
+          {onRename && !builtIn && (
+            <button
+              type="button"
+              title="Rename"
+              aria-label={`Rename ${p.name}`}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onRename(p);
+              }}
+              className={`flex h-7 w-7 items-center justify-center rounded-[7px] bg-panel text-dim shadow-[0_2px_6px_-2px_rgba(20,22,40,0.25)] transition hover:text-accent ${FOCUS_RING}`}
+            >
+              <Icon name="pencil" className="text-[13px]" />
+            </button>
+          )}
+          {onTrashRequest && (
+            <button
+              type="button"
+              title="Move to trash"
+              aria-label={`Move ${p.name} to trash`}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onTrashRequest(p);
+              }}
+              className={`flex h-7 w-7 items-center justify-center rounded-[7px] bg-panel text-dim shadow-[0_2px_6px_-2px_rgba(20,22,40,0.25)] transition hover:text-rose-600 ${FOCUS_RING}`}
+            >
+              <Icon name="trash" className="text-[13px]" />
+            </button>
+          )}
+        </div>
       </div>
       <div className="px-[15px] pb-4 pt-3.5">
         <span className="block text-[15.5px] font-bold">{p.name}</span>
@@ -130,10 +211,11 @@ function ProjectCard({
   );
 }
 
-function UploadTile() {
+function UploadTile({ onClick }: { onClick: () => void }) {
   return (
-    <Link
-      to="/upload"
+    <button
+      type="button"
+      onClick={onClick}
       className="flex min-h-[236px] flex-col items-center justify-center gap-3 rounded-[14px] border-[1.5px] border-dashed border-[#c7ccd6] bg-[#fafbfc] text-dim transition hover:border-accent/50 hover:bg-wash/40"
     >
       <span className="flex h-[46px] w-[46px] items-center justify-center rounded-xl bg-wash text-accent">
@@ -141,7 +223,7 @@ function UploadTile() {
       </span>
       <span className="text-[14.5px] font-semibold text-ink">Upload &amp; trace a plan</span>
       <span className="text-[12.5px] text-faint">PDF, PNG or JPG</span>
-    </Link>
+    </button>
   );
 }
 
@@ -166,7 +248,7 @@ function TrashedRow({ entry, onRestored }: { entry: TrashedProject; onRestored: 
     if (ok) {
       onRestored();
     } else {
-      reportError(`Couldn't restore ${PROJECT_LABEL[entry.projectId]} — a live scene may already exist.`, { kind: 'rejected' });
+      reportError(`Couldn't restore ${entry.name} — a live scene may already exist.`, { kind: 'rejected' });
     }
   };
   return (
@@ -176,7 +258,7 @@ function TrashedRow({ entry, onRestored }: { entry: TrashedProject; onRestored: 
           <Icon name="trash" className="text-[16px]" />
         </span>
         <div>
-          <span className="block text-[13.5px] font-semibold text-ink">{PROJECT_LABEL[entry.projectId]}</span>
+          <span className="block text-[13.5px] font-semibold text-ink">{entry.name}</span>
           <Mono className="text-[11.5px] text-faint">Trashed {new Date(entry.trashedAt).toLocaleString()}</Mono>
         </div>
       </div>
@@ -192,9 +274,106 @@ function TrashedRow({ entry, onRestored }: { entry: TrashedProject; onRestored: 
   );
 }
 
+/** Small "New project" dialog — name + kind — following ConfirmDialog's visual pattern. */
+function CreateProjectDialog({
+  open,
+  creating,
+  onCreate,
+  onCancel,
+}: {
+  open: boolean;
+  creating: boolean;
+  onCreate: (name: string, kind: 'home' | 'apartment') => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState('');
+  const [kind, setKind] = useState<'home' | 'apartment'>('home');
+
+  useEffect(() => {
+    if (open) {
+      setName('');
+      setKind('home');
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onCancel();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onCancel]);
+
+  if (!open) return null;
+
+  const trimmed = name.trim();
+  const canSubmit = trimmed.length > 0 && !creating;
+  const submit = () => {
+    if (canSubmit) onCreate(trimmed, kind);
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[1100] flex items-center justify-center bg-ink/10 p-4 backdrop-blur-[2px]"
+      onPointerDown={onCancel}
+      role="presentation"
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="New project"
+        className="hc-card w-full max-w-sm rounded-2xl border border-line bg-panel p-6"
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        <h2 className="text-[15px] font-semibold text-ink">New project</h2>
+        <label className="mt-4 block text-[12.5px] font-semibold text-dim">
+          Name
+          <input
+            autoFocus
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') submit();
+            }}
+            placeholder="e.g. Lake House"
+            className={`mt-1.5 w-full rounded-[10px] border border-line bg-field px-3 py-2 text-[14px] text-ink outline-none placeholder:text-faint focus:border-accent/50 ${FOCUS_RING}`}
+          />
+        </label>
+        <div className="mt-4">
+          <span className="block text-[12.5px] font-semibold text-dim">Type</span>
+          <Segmented<'home' | 'apartment'>
+            className="mt-1.5"
+            value={kind}
+            onChange={setKind}
+            active="white"
+            options={[
+              { value: 'home', label: 'Home' },
+              { value: 'apartment', label: 'Apartment' },
+            ]}
+          />
+        </div>
+        <div className="mt-6 flex justify-end gap-2.5">
+          <Button variant="secondary" size="sm" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button variant="primary" size="sm" disabled={!canSubmit} onClick={submit}>
+            {creating ? 'Creating…' : 'Create project'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function HomePage() {
   const queryClient = useQueryClient();
-  const { data: manifest } = useQuery({ queryKey: ['private-manifest'], queryFn: fetchPrivateManifest });
+  const navigate = useNavigate();
+  const { data: projects = [], isLoading: projectsLoading } = useQuery({ queryKey: ['projects'], queryFn: fetchProjects });
   const { data: storage } = useQuery({ queryKey: ['storage'], queryFn: fetchStorageStats });
   const { data: trashedProjects = [] } = useQuery({ queryKey: ['trashed-projects'], queryFn: fetchTrashedProjects });
   const { data: fetchStatus } = useQuery({
@@ -210,7 +389,9 @@ export function HomePage() {
   const [confirmTrash, setConfirmTrash] = useState<Project | null>(null);
   const [trashing, setTrashing] = useState(false);
   const [fetchStarting, setFetchStarting] = useState(false);
-  const hasMyHome = !!manifest && (manifest.hasGeneratedScene || manifest.hasManualScene);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
 
   // On completion, refresh what the download actually changed.
   useEffect(() => {
@@ -220,42 +401,23 @@ export function HomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchStatus?.done]);
 
-  const projects: Project[] = useMemo(
-    () => [
-      {
-        id: 'sample-home',
-        to: '/design/sample-home',
-        name: 'Sample Penthouse',
-        kind: 'sample',
-        stats: '2 floors · 7 rooms · 184 m²',
-        edited: 'Edited just now',
-        gradient: 'linear-gradient(160deg,#eef0f6,#e2e5ee)',
-        glyph: 0,
-        badge: 'SAMPLE',
-      },
-      {
-        id: 'my-home',
-        to: '/design/my-home',
-        name: 'My Home',
-        kind: 'home',
-        stats: hasMyHome ? 'traced from your plans' : 'no plan yet — trace one',
-        edited: hasMyHome ? 'Edited recently' : 'Not started',
-        gradient: 'linear-gradient(160deg,#efe7da,#e6dcc8)',
-        glyph: 1,
-      },
-    ],
-    [hasMyHome],
-  );
+  const projectViews: Project[] = useMemo(() => projects.map((m, i) => toProject(m, i)), [projects]);
+  const sampleProject = projectViews.find((p) => p.kind === 'sample');
 
   const onOpen = (id: string) => {
     recordOpen(id);
     setRecent(readRecentIds());
   };
 
-  const invalidateAfterTrashChange = (projectId: string) => {
-    void queryClient.invalidateQueries({ queryKey: ['trashed-projects'] });
+  const invalidateAfterProjectChange = (projectId?: string) => {
+    void queryClient.invalidateQueries({ queryKey: ['projects'] });
     void queryClient.invalidateQueries({ queryKey: ['storage'] });
     if (projectId === 'my-home') void queryClient.invalidateQueries({ queryKey: ['private-manifest'] });
+  };
+
+  const invalidateAfterTrashChange = (projectId: string) => {
+    void queryClient.invalidateQueries({ queryKey: ['trashed-projects'] });
+    invalidateAfterProjectChange(projectId);
   };
 
   const onConfirmTrash = async () => {
@@ -263,14 +425,51 @@ export function HomePage() {
     // Close the dialog BEFORE the await — a double-click on Confirm must not
     // fire a second POST (the first move already emptied the live scene → 404).
     const trashedId = confirmTrash.id;
+    const trashedName = confirmTrash.name;
     setConfirmTrash(null);
     setTrashing(true);
-    const ok = await trashProject(trashedId as ProjectId);
+    const ok = await trashProject(trashedId);
     setTrashing(false);
     if (ok) {
       invalidateAfterTrashChange(trashedId);
     } else {
-      reportError(`Couldn't move ${PROJECT_LABEL[trashedId as ProjectId] ?? trashedId} to trash.`, { kind: 'rejected' });
+      reportError(`Couldn't move ${trashedName} to trash.`, { kind: 'rejected' });
+    }
+  };
+
+  const onCreateProject = async (name: string, kind: 'home' | 'apartment') => {
+    setCreating(true);
+    const project = await createProjectApi(name, kind);
+    setCreating(false);
+    if (project) {
+      setCreateOpen(false);
+      invalidateAfterProjectChange();
+      navigate(`/design/${project.id}`);
+    } else {
+      reportError('Could not create the project — is the local server running?', { kind: 'rejected' });
+    }
+  };
+
+  const onRename = async (p: Project) => {
+    const name = window.prompt('Rename project', p.name);
+    const trimmed = name?.trim();
+    if (!trimmed || trimmed === p.name) return;
+    const ok = await renameProjectApi(p.id, trimmed);
+    if (ok) {
+      invalidateAfterProjectChange();
+    } else {
+      reportError(`Couldn't rename ${p.name}.`, { kind: 'rejected' });
+    }
+  };
+
+  const onDuplicate = async (p: Project) => {
+    setDuplicatingId(p.id);
+    const project = await duplicateProjectApi(p.id);
+    setDuplicatingId(null);
+    if (project) {
+      invalidateAfterProjectChange();
+    } else {
+      reportError(`Couldn't duplicate ${p.name} — it may not have a scene yet.`, { kind: 'rejected' });
     }
   };
 
@@ -301,15 +500,18 @@ export function HomePage() {
     { key: 'trash', label: 'Trash', icon: 'trash' },
   ];
 
-  const filtered = projects.filter(matches);
+  const filtered = projectViews.filter(matches);
   const recentList = recent
-    .map((id) => projects.find((p) => p.id === id))
+    .map((id) => projectViews.find((p) => p.id === id))
     .filter((p): p is Project => !!p)
     .filter(matches);
 
   const showToolbar = view === 'all' || view === 'recent';
   const titles: Record<View, { h: string; sub: string }> = {
-    all: { h: 'Projects', sub: `${hasMyHome ? '2 homes' : '1 home'} · local-first · nothing leaves this machine` },
+    all: {
+      h: 'Projects',
+      sub: `${projectViews.length} project${projectViews.length === 1 ? '' : 's'} · local-first · nothing leaves this machine`,
+    },
     recent: { h: 'Recent', sub: recentList.length ? 'Projects you’ve opened, most recent first' : 'Open a project — it’ll show up here' },
     templates: { h: 'Templates', sub: 'Start a new home from a ready-made plan' },
     trash: { h: 'Trash', sub: 'Deleted projects land here' },
@@ -344,13 +546,14 @@ export function HomePage() {
             Local-first · nothing leaves this machine
           </Chip>
         </div>
-        <Link
-          to="/upload"
+        <button
+          type="button"
+          onClick={() => setCreateOpen(true)}
           className="inline-flex items-center gap-2 rounded-[10px] bg-accent px-4 py-2.5 text-[14px] font-semibold text-white hc-glow transition hover:bg-[#403bd6]"
         >
           <Icon name="plus" className="text-[16px]" strokeWidth={2.2} />
           <span className="hidden sm:inline">New project</span>
-        </Link>
+        </button>
       </header>
 
       <div className="flex min-h-0 flex-1">
@@ -422,13 +625,29 @@ export function HomePage() {
           {/* ALL */}
           {view === 'all' && (
             <div className="grid grid-cols-1 gap-[18px] sm:grid-cols-2 xl:grid-cols-4">
-              <UploadTile />
+              <UploadTile onClick={() => setCreateOpen(true)} />
               {filtered.map((p) => (
-                <ProjectCard key={p.id} p={p} onOpen={onOpen} onTrashRequest={setConfirmTrash} />
+                <ProjectCard
+                  key={p.id}
+                  p={p}
+                  onOpen={onOpen}
+                  onTrashRequest={setConfirmTrash}
+                  onRename={onRename}
+                  onDuplicate={onDuplicate}
+                  duplicating={duplicatingId === p.id}
+                />
               ))}
               {filtered.length === 0 && (
                 <div className="col-span-full">
-                  <EmptyState icon="search" title="No matches" body="No projects match that filter or search. Clear it to see everything." />
+                  <EmptyState
+                    icon={projectsLoading ? 'clock' : 'search'}
+                    title={projectsLoading ? 'Loading projects…' : 'No matches'}
+                    body={
+                      projectsLoading
+                        ? 'Fetching your projects from the local server.'
+                        : 'No projects match that filter or search. Clear it to see everything.'
+                    }
+                  />
                 </div>
               )}
             </div>
@@ -439,7 +658,15 @@ export function HomePage() {
             (recentList.length ? (
               <div className="grid grid-cols-1 gap-[18px] sm:grid-cols-2 xl:grid-cols-4">
                 {recentList.map((p) => (
-                  <ProjectCard key={p.id} p={p} onOpen={onOpen} onTrashRequest={setConfirmTrash} />
+                  <ProjectCard
+                    key={p.id}
+                    p={p}
+                    onOpen={onOpen}
+                    onTrashRequest={setConfirmTrash}
+                    onRename={onRename}
+                    onDuplicate={onDuplicate}
+                    duplicating={duplicatingId === p.id}
+                  />
                 ))}
               </div>
             ) : (
@@ -449,11 +676,13 @@ export function HomePage() {
           {/* TEMPLATES */}
           {view === 'templates' && (
             <div className="grid grid-cols-1 gap-[18px] sm:grid-cols-2 xl:grid-cols-4">
-              <ProjectCard
-                p={{ ...projects[0]!, name: 'Sample Penthouse', edited: 'Open a copy to explore', badge: 'TEMPLATE' }}
-                onOpen={onOpen}
-              />
-              <UploadTile />
+              {sampleProject && (
+                <ProjectCard
+                  p={{ ...sampleProject, edited: 'Open a copy to explore', badge: 'TEMPLATE' }}
+                  onOpen={onOpen}
+                />
+              )}
+              <UploadTile onClick={() => setCreateOpen(true)} />
             </div>
           )}
 
@@ -532,6 +761,8 @@ export function HomePage() {
         onConfirm={onConfirmTrash}
         onCancel={() => setConfirmTrash(null)}
       />
+
+      <CreateProjectDialog open={createOpen} creating={creating} onCreate={(n, k) => void onCreateProject(n, k)} onCancel={() => setCreateOpen(false)} />
     </div>
   );
 }

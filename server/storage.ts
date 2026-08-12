@@ -26,16 +26,126 @@ export const APP_DATA = path.join(DATA_ROOT, '.homecanvas');
 export const PRIVATE_ROOT = path.join(DATA_ROOT, 'private-home-inputs');
 export const ASSET_CACHE = path.join(DATA_ROOT, 'asset-cache');
 
-export type ProjectId = 'sample-home' | 'my-home';
+/**
+ * Projects are no longer a two-value union: designers keep one project per
+ * client. Ids are server-generated slugs (path-safe by construction). Two
+ * BUILT-INS keep their historical storage:
+ *   sample-home → APP_DATA/projects/sample-home/  (the committed demo)
+ *   my-home     → PRIVATE_ROOT (the user's own home, gitignored)
+ * Everything else lives at APP_DATA/projects/<id>/ with a meta.json.
+ */
+export type ProjectId = string;
+
+// Path-safety is the load-bearing property: lowercase slug, no dots, no
+// separators, bounded length — nothing this regex accepts can escape
+// APP_DATA/projects/ via path.join.
+const PROJECT_ID_RE = /^[a-z0-9][a-z0-9-]{0,40}$/;
 
 export function isProjectId(value: string): value is ProjectId {
-  return value === 'sample-home' || value === 'my-home';
+  return PROJECT_ID_RE.test(value);
 }
+
+export interface ProjectMeta {
+  id: ProjectId;
+  name: string;
+  kind: 'home' | 'apartment' | 'sample';
+  createdAt: string;
+}
+
+const projectDir = (projectId: ProjectId): string => path.join(APP_DATA, 'projects', projectId);
+const projectMetaPath = (projectId: ProjectId): string => path.join(projectDir(projectId), 'meta.json');
 
 function scenePath(projectId: ProjectId): string {
   return projectId === 'my-home'
     ? path.join(PRIVATE_ROOT, 'processed', 'scene-json', 'my-home.scene.json')
-    : path.join(APP_DATA, 'projects', 'sample-home', 'scene.json');
+    : path.join(projectDir(projectId), 'scene.json');
+}
+
+/** New collision-proof project id: p-<base36 time><2 random chars>. */
+export function newProjectId(): ProjectId {
+  return `p-${Date.now().toString(36)}${Math.floor(Math.random() * 1296)
+    .toString(36)
+    .padStart(2, '0')}`;
+}
+
+export async function createProject(name: string, kind: ProjectMeta['kind'] = 'home'): Promise<ProjectMeta> {
+  const meta: ProjectMeta = {
+    id: newProjectId(),
+    name: name.trim().slice(0, 80) || 'Untitled project',
+    kind,
+    createdAt: new Date().toISOString(),
+  };
+  await atomicWrite(projectMetaPath(meta.id), JSON.stringify(meta, null, 2));
+  return meta;
+}
+
+export async function readProjectMeta(projectId: ProjectId): Promise<ProjectMeta | null> {
+  const file = projectMetaPath(projectId);
+  if (!existsSync(file)) return null;
+  try {
+    return JSON.parse(await readFile(file, 'utf8')) as ProjectMeta;
+  } catch {
+    return null;
+  }
+}
+
+export async function renameProject(projectId: ProjectId, name: string): Promise<boolean> {
+  const meta = await readProjectMeta(projectId);
+  if (!meta) return false;
+  meta.name = name.trim().slice(0, 80) || meta.name;
+  await atomicWrite(projectMetaPath(projectId), JSON.stringify(meta, null, 2));
+  return true;
+}
+
+/** Copy scene + variants + meta(name') into a fresh project. */
+export async function duplicateProject(fromId: ProjectId, name: string): Promise<ProjectMeta | null> {
+  const scene = await loadScene(fromId);
+  if (!scene) return null;
+  const fromMeta = await readProjectMeta(fromId);
+  const meta = await createProject(name, fromMeta?.kind ?? (fromId === 'sample-home' ? 'home' : 'home'));
+  await saveScene(meta.id, { ...scene, id: meta.id, name });
+  const fromVariants = variantsDir(fromId);
+  if (existsSync(fromVariants)) {
+    for (const entry of await readdir(fromVariants)) {
+      if (!entry.endsWith('.variant.json')) continue;
+      const raw = await readFile(path.join(fromVariants, entry), 'utf8');
+      // Re-home the variant: its meta.projectId must point at the copy, not the source.
+      let content = raw;
+      try {
+        const variant = JSON.parse(raw) as { meta?: { projectId?: string } };
+        if (variant.meta) {
+          variant.meta.projectId = meta.id;
+          content = JSON.stringify(variant, null, 2);
+        }
+      } catch {
+        // unparseable variant — copy as-is rather than fail the duplicate
+      }
+      await atomicWrite(path.join(variantsDir(meta.id), entry), content);
+    }
+  }
+  return meta;
+}
+
+/**
+ * Every project on this machine: the two built-ins (sample always; my-home when
+ * its private folder exists) + every APP_DATA/projects/<id> with a meta.json.
+ */
+export async function listProjects(): Promise<(ProjectMeta & { hasScene: boolean })[]> {
+  const out: (ProjectMeta & { hasScene: boolean })[] = [];
+  out.push({ id: 'sample-home', name: 'Sample Penthouse', kind: 'sample', createdAt: '', hasScene: existsSync(scenePath('sample-home')) });
+  if (existsSync(PRIVATE_ROOT)) {
+    out.push({ id: 'my-home', name: 'My Home', kind: 'home', createdAt: '', hasScene: existsSync(scenePath('my-home')) || existsSync(manualScenePath()) });
+  }
+  const root = path.join(APP_DATA, 'projects');
+  if (existsSync(root)) {
+    for (const entry of await readdir(root)) {
+      if (entry === 'sample-home' || !isProjectId(entry)) continue;
+      const meta = await readProjectMeta(entry);
+      if (!meta) continue;
+      out.push({ ...meta, hasScene: existsSync(scenePath(entry)) });
+    }
+  }
+  return out;
 }
 
 export function manualScenePath(): string {
@@ -79,7 +189,7 @@ async function backupCanonicalIfChanged(nextContent: string): Promise<void> {
 function variantsDir(projectId: ProjectId): string {
   return projectId === 'my-home'
     ? path.join(PRIVATE_ROOT, 'versions')
-    : path.join(APP_DATA, 'projects', 'sample-home', 'variants');
+    : path.join(projectDir(projectId), 'variants');
 }
 
 export async function atomicWrite(filePath: string, data: string | Uint8Array): Promise<void> {

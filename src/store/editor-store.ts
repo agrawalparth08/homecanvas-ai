@@ -181,7 +181,16 @@ export const useEditor = create<EditorState>((set, get) => ({
       set({ scene: existing, baseline: existing, guidedEmpty: false, activeFloorId: existing.floors[0]?.id ?? null });
       return;
     }
-    const scene = { ...buildSampleHome(), id: projectId, name: 'My Home (started from sample)' };
+    let scene: HomeScene;
+    if (projectId === 'my-home') {
+      scene = { ...buildSampleHome(), id: projectId, name: 'My Home (started from sample)' };
+    } else {
+      // Generic project: copy the actual sample-home scene (its current on-disk
+      // state, not a fresh fixture) so any customizations carry over, then adopt
+      // this project's id/name.
+      const sample = (await fetchScene('sample-home')) ?? buildSampleHome();
+      scene = { ...sample, id: projectId, name: `${sample.name} (started from sample)` };
+    }
     set({ scene, baseline: scene, guidedEmpty: false, activeFloorId: scene.floors[0]!.id });
     void persistScene(projectId, scene);
   },

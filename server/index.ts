@@ -11,6 +11,7 @@ import { parsePrimitivePlan } from '../lib/extraction/primitive-plan';
 import { bridgeEnabled, readResult, writeRequest } from './bridge';
 import { autoAnswer, bridgeAutoEnabled } from './bridge-auto';
 import { buildSceneExport } from './export';
+import { buildViewerHtml, viewerExportAvailable } from './viewer-export';
 import { detectBlender, readRender, renderWithBlender } from './adapters/blender';
 import { cubicasaAvailable, runCubicasaSidecar } from './adapters/cubicasa';
 import { DesignVariantSchema, HomeSceneSchema } from '../lib/scene/schemas';
@@ -20,11 +21,15 @@ import {
   APP_DATA,
   ASSET_CACHE,
   PRIVATE_ROOT,
+  createProject,
+  duplicateProject,
   isProjectId,
+  listProjects,
   listVariants,
   loadScene,
   loadVariant,
   manualScenePath,
+  renameProject,
   resolvePrivateFile,
   saveManualScene,
   saveRasterizedPage,
@@ -261,6 +266,31 @@ app.get('/api/scenes/:projectId/export', async (c) => {
   });
 });
 
+// Self-contained interactive 3D viewer HTML — the file a designer sends a client.
+app.get('/api/scenes/:projectId/viewer/available', async (c) =>
+  c.json({ available: await viewerExportAvailable() }),
+);
+
+app.get('/api/scenes/:projectId/viewer', async (c) => {
+  const projectId = c.req.param('projectId');
+  if (!isProjectId(projectId)) return c.json({ error: 'unknown project' }, 404);
+  let scene;
+  try {
+    scene = await loadScene(projectId);
+  } catch (e) {
+    return c.json({ error: 'scene could not be loaded', detail: (e as Error).message }, 422);
+  }
+  if (!scene) return c.json({ error: 'no scene to export' }, 404);
+  const brandName = c.req.query('brand') ?? '';
+  const html = await buildViewerHtml(scene, brandName ? { name: brandName } : undefined);
+  if (!html) return c.json({ error: 'viewer bundle unavailable — run npm run build first' }, 501);
+  const safe = (scene.name || projectId).replace(/[^a-zA-Z0-9-_ ]/g, '').trim().replace(/\s+/g, '-').toLowerCase() || 'home';
+  return c.body(html, 200, {
+    'Content-Type': 'text/html; charset=utf-8',
+    'Content-Disposition': `attachment; filename="${safe}-3d-viewer.html"`,
+  });
+});
+
 app.put('/api/scenes/:projectId', async (c) => {
   const projectId = c.req.param('projectId');
   if (!isProjectId(projectId)) return c.json({ error: 'unknown project' }, 404);
@@ -485,14 +515,56 @@ app.get('/api/assets/fetch/status', (c) => c.json({ ...fetchState, available: as
 // project trash / restore (scene files only — never touches raw/ uploads)
 // ---------------------------------------------------------------------------
 
-const sampleTrashDir = () => path.join(APP_DATA, 'trash');
-const sampleLiveScene = () => path.join(APP_DATA, 'projects', 'sample-home', 'scene.json');
+const appTrashDir = () => path.join(APP_DATA, 'trash');
+const appLiveScene = (id: string) => path.join(APP_DATA, 'projects', id, 'scene.json');
 const myHomeTrashDir = () => path.join(PRIVATE_ROOT, 'backups', 'trash');
 const myHomeLiveScene = () => path.join(PRIVATE_ROOT, 'processed', 'scene-json', 'my-home.scene.json');
 // Matches both `my-home.scene.<ts>.json` and `my-home.manual.scene.<ts>.json` —
 // a trashed/restored pair always shares one timestamp so they group as one set.
 const MY_HOME_TRASH_RE = /^my-home\.(?:scene|manual\.scene)\.(\d+)\.json$/;
-const SAMPLE_TRASH_RE = /^scene\.(\d+)\.json$/;
+// Generic projects (and sample-home) trash as `<id>.scene.<ts>.json` in one
+// shared dir; `scene.<ts>.json` is the legacy pre-multi-project sample form.
+const APP_TRASH_RE = /^([a-z0-9][a-z0-9-]{0,40})\.scene\.(\d+)\.json$/;
+const LEGACY_SAMPLE_TRASH_RE = /^scene\.(\d+)\.json$/;
+/** id-scoped matcher over the shared app trash dir (legacy names = sample-home). */
+function appTrashEntryTs(entry: string, id: string): number | null {
+  const m = entry.match(APP_TRASH_RE);
+  if (m && m[1] === id) return Number(m[2]);
+  if (id === 'sample-home') {
+    const legacy = entry.match(LEGACY_SAMPLE_TRASH_RE);
+    if (legacy) return Number(legacy[1]);
+  }
+  return null;
+}
+async function newestAppTrashTs(id: string): Promise<number | null> {
+  const dir = appTrashDir();
+  if (!existsSync(dir)) return null;
+  let newest: number | null = null;
+  for (const entry of await readdir(dir)) {
+    const ts = appTrashEntryTs(entry, id);
+    if (ts !== null && (newest === null || ts > newest)) newest = ts;
+  }
+  return newest;
+}
+function appTrashFile(id: string, ts: number): string {
+  const preferred = path.join(appTrashDir(), `${id}.scene.${ts}.json`);
+  if (existsSync(preferred) || id !== 'sample-home') return preferred;
+  const legacy = path.join(appTrashDir(), `scene.${ts}.json`);
+  return existsSync(legacy) ? legacy : preferred;
+}
+/** Keep only the newest `keep` trashed sets for ONE project id in the app dir. */
+async function pruneAppTrash(id: string, keep = 10): Promise<void> {
+  const dir = appTrashDir();
+  if (!existsSync(dir)) return;
+  const byTs: [number, string][] = [];
+  for (const entry of await readdir(dir)) {
+    const ts = appTrashEntryTs(entry, id);
+    if (ts !== null) byTs.push([ts, entry]);
+  }
+  for (const [, entry] of byTs.sort((a, b) => b[0] - a[0]).slice(keep)) {
+    await unlink(path.join(dir, entry));
+  }
+}
 
 async function newestTimestamp(dir: string, re: RegExp): Promise<number | null> {
   if (!existsSync(dir)) return null;
@@ -543,17 +615,52 @@ async function trashMyHomePair(ts: number): Promise<void> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// project CRUD (multi-project workspace)
+// ---------------------------------------------------------------------------
+
+app.get('/api/projects', async (c) => c.json({ projects: await listProjects() }));
+
+app.post('/api/projects', async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as { name?: string; kind?: string };
+  const kind = body.kind === 'apartment' ? 'apartment' : 'home';
+  const meta = await createProject(body.name ?? '', kind);
+  return c.json({ ok: true, project: meta });
+});
+
+app.post('/api/projects/:id/rename', async (c) => {
+  const id = c.req.param('id');
+  if (!isProjectId(id) || id === 'sample-home' || id === 'my-home') {
+    return c.json({ error: 'this project cannot be renamed' }, 400);
+  }
+  const body = (await c.req.json().catch(() => ({}))) as { name?: string };
+  if (!body.name?.trim()) return c.json({ error: 'name required' }, 400);
+  const ok = await renameProject(id, body.name);
+  return ok ? c.json({ ok: true }) : c.json({ error: 'unknown project' }, 404);
+});
+
+app.post('/api/projects/:id/duplicate', async (c) => {
+  const id = c.req.param('id');
+  if (!isProjectId(id)) return c.json({ error: 'unknown project' }, 404);
+  const body = (await c.req.json().catch(() => ({}))) as { name?: string };
+  const source = await loadScene(id);
+  if (!source) return c.json({ error: 'nothing to duplicate' }, 404);
+  const meta = await duplicateProject(id, body.name?.trim() || `${source.name} copy`);
+  if (!meta) return c.json({ error: 'duplicate failed' }, 500);
+  return c.json({ ok: true, project: meta });
+});
+
 app.post('/api/projects/:id/trash', async (c) => {
   const id = c.req.param('id');
   if (!isProjectId(id)) return c.json({ error: 'unknown project' }, 404);
   const ts = Date.now();
-  if (id === 'sample-home') {
-    const live = sampleLiveScene();
+  if (id !== 'my-home') {
+    const live = appLiveScene(id);
     if (!existsSync(live)) return c.json({ error: 'nothing to trash' }, 404);
-    const dir = sampleTrashDir();
+    const dir = appTrashDir();
     await mkdir(dir, { recursive: true });
-    await rename(live, path.join(dir, `scene.${ts}.json`));
-    await pruneTrash(dir, SAMPLE_TRASH_RE);
+    await rename(live, path.join(dir, `${id}.scene.${ts}.json`));
+    await pruneAppTrash(id);
     return c.json({ ok: true, trashedAt: ts });
   }
   if (!existsSync(myHomeLiveScene()) && !existsSync(manualScenePath())) {
@@ -573,20 +680,20 @@ app.post('/api/projects/:id/restore', async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as { trashedAt?: number };
   const requested = typeof body.trashedAt === 'number' && Number.isInteger(body.trashedAt) ? body.trashedAt : null;
 
-  if (id === 'sample-home') {
-    const dir = sampleTrashDir();
-    const ts = requested ?? (await newestTimestamp(dir, SAMPLE_TRASH_RE));
+  if (id !== 'my-home') {
+    const dir = appTrashDir();
+    const ts = requested ?? (await newestAppTrashTs(id));
     if (ts === null) return c.json({ error: 'nothing trashed' }, 404);
-    const trashed = path.join(dir, `scene.${ts}.json`);
+    const trashed = appTrashFile(id, ts);
     if (!existsSync(trashed)) return c.json({ error: 'that trashed version no longer exists' }, 404);
-    const live = sampleLiveScene();
+    const live = appLiveScene(id);
     if (existsSync(live)) {
       // Swap: the current live scene becomes a new trash set, never overwritten.
-      await rename(live, path.join(dir, `scene.${Date.now()}.json`));
+      await rename(live, path.join(dir, `${id}.scene.${Date.now()}.json`));
     }
     await mkdir(path.dirname(live), { recursive: true });
     await rename(trashed, live);
-    await pruneTrash(dir, SAMPLE_TRASH_RE);
+    await pruneAppTrash(id);
     return c.json({ ok: true, restoredAt: ts });
   }
 
@@ -616,21 +723,36 @@ app.post('/api/projects/:id/restore', async (c) => {
 });
 
 app.get('/api/projects/trashed', async (c) => {
-  const out: { projectId: 'sample-home' | 'my-home'; trashedAt: number }[] = [];
-  const groups: [( 'sample-home' | 'my-home'), string, RegExp][] = [
-    ['sample-home', sampleTrashDir(), SAMPLE_TRASH_RE],
-    ['my-home', myHomeTrashDir(), MY_HOME_TRASH_RE],
-  ];
-  for (const [projectId, dir, re] of groups) {
-    if (!existsSync(dir)) continue;
+  const out: { projectId: string; name: string; trashedAt: number }[] = [];
+  const nameOf = new Map<string, string>();
+  for (const p of await listProjects()) nameOf.set(p.id, p.name);
+  // App trash dir: generic `<id>.scene.<ts>.json` + legacy `scene.<ts>.json` (= sample-home).
+  const appDir = appTrashDir();
+  if (existsSync(appDir)) {
+    const seen = new Set<string>();
+    for (const entry of await readdir(appDir)) {
+      const generic = entry.match(APP_TRASH_RE);
+      const legacy = entry.match(LEGACY_SAMPLE_TRASH_RE);
+      const projectId = generic ? generic[1]! : legacy ? 'sample-home' : null;
+      const ts = generic ? Number(generic[2]) : legacy ? Number(legacy[1]) : null;
+      if (!projectId || ts === null) continue;
+      const key = `${projectId}:${ts}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ projectId, name: nameOf.get(projectId) ?? projectId, trashedAt: ts });
+    }
+  }
+  // my-home pairs (their trash lives with the private data).
+  const myDir = myHomeTrashDir();
+  if (existsSync(myDir)) {
     const seen = new Set<number>();
-    for (const entry of await readdir(dir)) {
-      const m = entry.match(re);
+    for (const entry of await readdir(myDir)) {
+      const m = entry.match(MY_HOME_TRASH_RE);
       if (!m) continue;
       const ts = Number(m[1]);
       if (seen.has(ts)) continue;
       seen.add(ts);
-      out.push({ projectId, trashedAt: ts });
+      out.push({ projectId: 'my-home', name: 'My Home', trashedAt: ts });
     }
   }
   out.sort((a, b) => b.trashedAt - a.trashedAt);

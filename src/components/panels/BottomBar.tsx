@@ -216,6 +216,20 @@ export function BottomBar() {
           {saving ? 'Saving…' : 'Save'}
         </Button>
         <Button
+          variant="secondary"
+          size="sm"
+          icon="share"
+          title="Download a self-contained interactive 3D viewer (single HTML file) to send to your client"
+          onClick={() => {
+            const a = document.createElement('a');
+            a.href = `/api/scenes/${projectId}/viewer`;
+            a.download = '';
+            a.click();
+          }}
+        >
+          Share
+        </Button>
+        <Button
           variant="dark"
           size="sm"
           icon="upload"

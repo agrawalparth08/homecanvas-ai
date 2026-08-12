@@ -32,7 +32,7 @@ import { RoomNameEditor } from '../components/inspector/RoomNameEditor';
 import { ReconcilePanel } from '../components/reconcile/ReconcilePanel';
 import { Icon } from '../components/ui/Icon';
 import { FOCUS_RING } from '../components/ui/primitives';
-import { fetchPrivateManifest, fetchScene, fetchVariant, fetchVariants, privateFileUrl, saveManualScene, saveRasterizedPage, saveVariantRemote } from '../api';
+import { fetchPrivateManifest, fetchScene, fetchVariant, fetchVariants, persistScene, privateFileUrl, saveManualScene, saveRasterizedPage, saveVariantRemote } from '../api';
 import { loadRasterImage, rasterizePdf } from '../lib/pdf';
 import { useEditor } from '../store/editor-store';
 import { reportError } from '../store/error-store';
@@ -131,6 +131,10 @@ export function VerifyPage() {
   const navigate = useNavigate();
   const loadSceneObject = useEditor((s) => s.loadSceneObject);
   const setViewMode = useEditor((s) => s.setViewMode);
+  // Which project this trace belongs to (set by DesignPage's loadProject before
+  // linking here) — my-home keeps its dedicated manual-scene file, any other
+  // project persists through the generic scenes endpoint.
+  const projectId = useEditor((s) => s.projectId);
 
   const { data: manifest } = useQuery({ queryKey: ['private-manifest'], queryFn: fetchPrivateManifest });
   const { data: versions, refetch: refetchVersions } = useQuery({ queryKey: ['my-home-versions'], queryFn: () => fetchVariants('my-home') });
@@ -421,12 +425,12 @@ export function VerifyPage() {
 
   async function commitFinish(s: HomeScene) {
     setBusy('Saving…');
-    const ok = await saveManualScene(s);
+    const ok = projectId === 'my-home' ? await saveManualScene(s) : await persistScene(projectId, s);
     if (!ok) reportError("Couldn't save your trace before opening 3D — is the local server running?", { kind: 'network' });
-    loadSceneObject('my-home', s);
+    loadSceneObject(projectId, s);
     setBusy(null);
     setReconcileCandidate(null);
-    navigate('/design/my-home');
+    navigate(`/design/${projectId}`);
   }
 
   async function finish() {

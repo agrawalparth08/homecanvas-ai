@@ -15,6 +15,7 @@ import { buildViewerHtml, viewerExportAvailable } from './viewer-export';
 import { batchFilePath, batchStatus, startBatch } from './render-batch';
 import { exportBundle, importBundle } from './bundles';
 import { activateLicense, deactivateLicense, licenseStatus, proGated } from './license';
+import { deleteCustomPack, exportPack, importPack, listCustomPacks } from './style-packs';
 import { detectBlender, readRender, renderWithBlender } from './adapters/blender';
 import { cubicasaAvailable, runCubicasaSidecar } from './adapters/cubicasa';
 import { DesignVariantSchema, HomeSceneSchema } from '../lib/scene/schemas';
@@ -99,6 +100,33 @@ app.post('/api/render/blender', async (c) => {
   });
   if (!result.ok) return c.json({ error: result.reason }, 503);
   return c.body(await readRender(result.pngPath), 200, { 'Content-Type': 'image/png', 'Cache-Control': 'no-store' });
+});
+
+// .hcpack style packs — designer-shareable palettes/materials. Customs are
+// files under APP_DATA/style-packs/; built-ins export but never delete.
+app.get('/api/style-packs', async (c) => c.json({ packs: await listCustomPacks() }));
+
+app.get('/api/style-packs/:id/export', async (c) => {
+  const envelope = await exportPack(c.req.param('id'));
+  if (!envelope) return c.json({ error: 'unknown pack' }, 404);
+  const safe = envelope.pack.name.replace(/[^a-zA-Z0-9-_ ]/g, '').trim().replace(/\s+/g, '-').toLowerCase() || 'style-pack';
+  return c.body(JSON.stringify(envelope, null, 2), 200, {
+    'Content-Type': 'application/json',
+    'Content-Disposition': `attachment; filename="${safe}.hcpack"`,
+  });
+});
+
+app.post('/api/style-packs/import', async (c) => {
+  const raw = await c.req.json().catch(() => null);
+  if (raw === null) return c.json({ error: 'not valid JSON' }, 400);
+  const result = await importPack(raw);
+  if (!result.ok) return c.json({ error: result.reason }, 400);
+  return c.json({ ok: true, pack: result.pack });
+});
+
+app.delete('/api/style-packs/:id', async (c) => {
+  const ok = await deleteCustomPack(c.req.param('id'));
+  return ok ? c.json({ ok: true }) : c.json({ error: 'unknown or built-in pack' }, 404);
 });
 
 // Offline licensing — trial/licensed/expired. Never gates editing or the

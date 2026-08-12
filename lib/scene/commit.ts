@@ -560,6 +560,83 @@ function applyOp(draft: HomeScene, op: PatchOp): void {
       return;
     }
 
+    case 'duplicate_floor': {
+      const src = draft.floors.find((f) => f.id === op.floorId);
+      if (!src) throw new OpError(`floor "${op.floorId}" not found`, op.floorId);
+      if (draft.floors.some((f) => f.id === op.newFloorId)) {
+        throw new OpError(`floor id "${op.newFloorId}" already exists`, op.newFloorId);
+      }
+      if (draft.floors.some((f) => f.level === op.level)) {
+        throw new OpError(`a floor already exists at level ${op.level} — pick a free level`);
+      }
+      // Deep-copy the source, then re-mint EVERY entity id (ids are unique
+      // scene-wide) and remap the internal references consistently.
+      const clone = JSON.parse(JSON.stringify(src)) as Floor;
+      const remap = new Map<string, string>();
+      const mint = (id: string): string => {
+        const fresh = `${id}~${op.newFloorId}`;
+        remap.set(id, fresh);
+        return fresh;
+      };
+      clone.id = op.newFloorId;
+      clone.name = op.name;
+      clone.level = op.level;
+      for (const room of clone.rooms) {
+        room.id = mint(room.id);
+        room.floorSurface.id = mint(room.floorSurface.id);
+        if (room.ceilingSurface) room.ceilingSurface.id = mint(room.ceilingSurface.id);
+      }
+      for (const wall of clone.walls) {
+        wall.id = mint(wall.id);
+        wall.floorId = op.newFloorId;
+      }
+      for (const obj of clone.objects) obj.id = mint(obj.id);
+      for (const opening of clone.openings) opening.id = mint(opening.id);
+      for (const stair of clone.stairs) stair.id = mint(stair.id);
+      for (const light of clone.lights) light.id = mint(light.id);
+      // Second pass: references.
+      for (const room of clone.rooms) {
+        room.floorId = op.newFloorId;
+        room.floorSurface.parentId = room.id;
+        if (room.ceilingSurface) room.ceilingSurface.parentId = room.id;
+        room.wallIds = room.wallIds.map((id) => remap.get(id) ?? id);
+        room.lightIds = room.lightIds.map((id) => remap.get(id) ?? id);
+        room.furnitureIds = room.furnitureIds.map((id) => remap.get(id) ?? id);
+      }
+      for (const obj of clone.objects) obj.roomId = remap.get(obj.roomId) ?? obj.roomId;
+      for (const opening of clone.openings) {
+        opening.wallId = remap.get(opening.wallId) ?? opening.wallId;
+      }
+      for (const stair of clone.stairs) {
+        stair.floorId = op.newFloorId;
+        // A stair's link to the floor ABOVE would dangle on a copy — drop it;
+        // re-linking is a deliberate follow-up edit.
+        delete stair.crossFloorLink;
+      }
+      for (const light of clone.lights) {
+        light.floorId = op.newFloorId;
+        if (light.roomId) light.roomId = remap.get(light.roomId) ?? light.roomId;
+      }
+      draft.floors.push(clone);
+      draft.floors.sort((a, b) => a.level - b.level);
+      return;
+    }
+
+    case 'remove_floor': {
+      const idx = draft.floors.findIndex((f) => f.id === op.floorId);
+      if (idx < 0) throw new OpError(`floor "${op.floorId}" not found`, op.floorId);
+      if (draft.floors.length <= 1) throw new OpError('a home needs at least one floor');
+      draft.floors.splice(idx, 1);
+      // Stairs on other floors may link UP to the removed floor — scrub those
+      // links or the validation gate rejects the whole commit as dangling.
+      for (const floor of draft.floors) {
+        for (const stair of floor.stairs) {
+          if (stair.crossFloorLink?.upperFloorId === op.floorId) delete stair.crossFloorLink;
+        }
+      }
+      return;
+    }
+
     case 'recalibrate_floor': {
       const floor = floorOf(draft, op.floorId);
       const f = op.factor;

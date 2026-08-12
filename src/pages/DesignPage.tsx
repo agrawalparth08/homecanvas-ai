@@ -14,6 +14,7 @@ import { ChatPanel } from '../components/chat/ChatPanel';
 import { LogPanel, LogTabBadge } from '../components/log/LogPanel';
 import { Icon } from '../components/ui/Icon';
 import { useEditor } from '../store/editor-store';
+import { useT } from '../i18n';
 import type { ProjectId } from '../api';
 
 /** Any valid project slug (built-ins + generic app-data projects) — mirrors the server's isProjectId. */
@@ -73,6 +74,7 @@ function GuidedEmptyState({ projectId }: { projectId: ProjectId }) {
 }
 
 export function DesignPage() {
+  const t = useT();
   const params = useParams();
   const rawId = params['projectId'];
   const projectId: ProjectId = rawId && PROJECT_ID_RE.test(rawId) ? rawId : 'sample-home';
@@ -130,10 +132,10 @@ export function DesignPage() {
         <span className="truncate text-[14px] text-dim">{scene?.name ?? projectName ?? projectId}</span>
         <span className="hidden h-[22px] w-px flex-shrink-0 bg-line sm:block" />
         <Link to="/verify" className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-[9px] bg-wash px-3 py-[7px] text-[13px] font-semibold text-accent transition hover:bg-[#e3e1fb]">
-          <Icon name="wand" className="text-[14px]" strokeWidth={2} /> <span className="hidden md:inline">Trace plan</span>
+          <Icon name="wand" className="text-[14px]" strokeWidth={2} /> <span className="hidden md:inline">{t('Trace plan')}</span>
         </Link>
         <Link to="/variants" className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-[9px] bg-soft px-3 py-[7px] text-[13px] font-semibold text-dim transition hover:bg-track">
-          <Icon name="columns" className="text-[14px]" strokeWidth={2} /> <span className="hidden md:inline">Boards</span>
+          <Icon name="columns" className="text-[14px]" strokeWidth={2} /> <span className="hidden md:inline">{t('Boards')}</span>
         </Link>
         {showBefore && <span className="flex-shrink-0 rounded bg-wash px-2 py-0.5 text-[11px] font-bold text-accent">BEFORE</span>}
         <span className="ml-auto hidden truncate text-[12px] text-faint lg:inline">

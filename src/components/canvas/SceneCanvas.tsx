@@ -83,7 +83,15 @@ function PhotoCapture() {
 function CameraRig({ scene }: { scene: HomeScene }) {
   const viewMode = useEditor((s) => s.viewMode);
   const draggingObject = useEditor((s) => s.draggingObject);
+  const activeFloorId = useEditor((s) => s.activeFloorId);
   const camera = useThree((s) => s.camera);
+
+  // Only the active floor renders, at its stacked elevation — the orbit
+  // target must ride up with it or upper storeys (towers) frame off-screen.
+  const floorY = useMemo(
+    () => (activeFloorId ? floorElevation(scene, activeFloorId) * MM : 0),
+    [scene, activeFloorId],
+  );
 
   // Scene bounds as PRIMITIVES so a furniture edit (which leaves walls untouched)
   // doesn't churn object identity and re-fire the framing effect below.
@@ -100,9 +108,10 @@ function CameraRig({ scene }: { scene: HomeScene }) {
     }
     return { cx: (maxX / 2) * MM, cz: (-maxY / 2) * MM, span: Math.max(maxX, maxY) * MM };
   }, [scene]);
-  // Stable orbit target: changes only when the wall bounds change, NOT on a
-  // furniture move, so OrbitControls' target and the reframe effect stay put.
-  const center = useMemo(() => new THREE.Vector3(bounds.cx, 0, bounds.cz), [bounds.cx, bounds.cz]);
+  // Stable orbit target: changes only when the wall bounds change or the
+  // active floor's elevation does, NOT on a furniture move, so OrbitControls'
+  // target and the reframe effect stay put.
+  const center = useMemo(() => new THREE.Vector3(bounds.cx, floorY, bounds.cz), [bounds.cx, bounds.cz, floorY]);
 
   useEffect(() => {
     // Frame by scene size so larger homes don't clip the camera into a wall. Runs
@@ -110,13 +119,13 @@ function CameraRig({ scene }: { scene: HomeScene }) {
     // otherwise finishing a furniture drag would snap the camera back to default.
     const d = Math.max(8, bounds.span);
     if (viewMode === 'top') {
-      camera.position.set(center.x, d * 1.4, center.z + 0.01);
+      camera.position.set(center.x, center.y + d * 1.4, center.z + 0.01);
       camera.lookAt(center);
     } else if (viewMode === 'orbit') {
-      camera.position.set(center.x + d * 0.75, d * 0.7, center.z + d * 0.75);
+      camera.position.set(center.x + d * 0.75, center.y + d * 0.7, center.z + d * 0.75);
       camera.lookAt(center);
     } else {
-      camera.position.set(center.x, 1.6, center.z);
+      camera.position.set(center.x, center.y + 1.6, center.z);
     }
   }, [viewMode, camera, center, bounds.span]);
 

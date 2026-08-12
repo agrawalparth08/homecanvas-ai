@@ -7,8 +7,10 @@ import { useEditor } from '../../store/editor-store';
 import { reportError } from '../../store/error-store';
 import { Icon } from '../ui/Icon';
 import { FOCUS_RING, SectionLabel, TierBadge } from '../ui/primitives';
+import { useT } from '../../i18n';
 
 function RoomsSection() {
+  const t = useT();
   const scene = useEditor((s) => s.scene);
   const activeFloorId = useEditor((s) => s.activeFloorId);
   const selection = useEditor((s) => s.selection);
@@ -20,7 +22,7 @@ function RoomsSection() {
   return (
     <div>
       <div className="px-2 pb-2 pt-1">
-        <SectionLabel>Rooms</SectionLabel>
+        <SectionLabel>{t('Rooms')}</SectionLabel>
       </div>
       <div className="flex flex-col gap-0.5 px-1">
         {floor.rooms.map((room) => {
@@ -44,6 +46,7 @@ function RoomsSection() {
 }
 
 function StylePacksSection() {
+  const t = useT();
   const scene = useEditor((s) => s.scene);
   const selection = useEditor((s) => s.selection);
   const applyPatch = useEditor((s) => s.applyPatch);
@@ -112,7 +115,7 @@ function StylePacksSection() {
   return (
     <div>
       <div className="flex items-center justify-between px-2 pb-2 pt-1">
-        <SectionLabel>Style packs</SectionLabel>
+        <SectionLabel>{t('Style packs')}</SectionLabel>
         <input
           ref={importRef}
           type="file"
@@ -126,7 +129,7 @@ function StylePacksSection() {
           title="Import a style pack (.hcpack)"
           className={`flex h-6 items-center gap-1 rounded-[7px] px-2 text-[11.5px] font-semibold text-dim transition hover:bg-soft hover:text-ink ${FOCUS_RING}`}
         >
-          <Icon name="plus" className="text-[12px]" /> Import
+          <Icon name="plus" className="text-[12px]" /> {t('Import')}
         </button>
       </div>
       <div className="flex flex-col gap-2.5 px-1 pb-4">
@@ -175,13 +178,13 @@ function StylePacksSection() {
                 className={`flex-1 rounded-[7px] bg-soft py-1.5 text-[12px] font-semibold text-dim transition ${FOCUS_RING} enabled:hover:bg-track disabled:opacity-40`}
                 title={selectedRoom ? `Apply to ${selectedRoom.name}` : 'Select a room first'}
               >
-                Room
+                {t('Room')}
               </button>
               <button
                 onClick={() => apply(pack.id, true)}
                 className={`flex-1 rounded-[7px] bg-accent py-1.5 text-[12px] font-semibold text-white transition ${FOCUS_RING} hover:bg-[#403bd6]`}
               >
-                Whole home
+                {t('Whole home')}
               </button>
             </div>
           </div>

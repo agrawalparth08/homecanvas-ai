@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useProfile } from '../../store/profile-store';
 import { Button } from './Button';
 import { Icon } from './Icon';
-import { FOCUS_RING } from './primitives';
+import { FOCUS_RING, Segmented } from './primitives';
+import { LANGUAGES, useLang, useT, type Lang } from '../../i18n';
 
 interface Props {
   open: boolean;
@@ -18,6 +19,9 @@ const MAX_LOGO_BYTES = 200 * 1024;
  * backdrop). Reads/writes the persisted profile store directly.
  */
 export function ProfileDialog({ open, onClose }: Props) {
+  const t = useT();
+  const lang = useLang((s) => s.lang);
+  const setLang = useLang((s) => s.setLang);
   const studioName = useProfile((s) => s.studioName);
   const contact = useProfile((s) => s.contact);
   const logoDataUrl = useProfile((s) => s.logoDataUrl);
@@ -151,6 +155,17 @@ export function ProfileDialog({ open, onClose }: Props) {
           ) : (
             <p className="mt-1.5 text-[11.5px] text-faint">PNG or JPG, under 200 KB.</p>
           )}
+        </div>
+
+        <div className="mt-3.5">
+          <span className="block text-[12.5px] font-semibold text-dim">{t('Language')}</span>
+          <Segmented<Lang>
+            className="mt-1.5"
+            value={lang}
+            onChange={setLang}
+            active="white"
+            options={LANGUAGES.map((l) => ({ value: l.id, label: l.label }))}
+          />
         </div>
 
         <div className="mt-6 flex justify-end">

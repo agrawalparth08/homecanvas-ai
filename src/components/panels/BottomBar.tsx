@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { makePatch } from '@lib/scene/patching';
 import { fetchVariants } from '../../api';
 import { BatchRenderDialog } from '../ui/BatchRenderDialog';
 import { Button } from '../ui/Button';
@@ -8,6 +9,7 @@ import { FOCUS_RING } from '../ui/primitives';
 import { useEditor, type ViewMode } from '../../store/editor-store';
 import { reportError } from '../../store/error-store';
 import { useProfile } from '../../store/profile-store';
+import { useT } from '../../i18n';
 
 const VIEW_MODES: { id: ViewMode; label: string; icon: IconName }[] = [
   { id: 'orbit', label: 'Orbit', icon: 'orbit' },
@@ -33,9 +35,11 @@ function Seg({ active, onClick, children, title }: { active: boolean; onClick: (
 const SEG_GROUP = 'flex flex-shrink-0 gap-0.5 rounded-[9px] bg-track p-[3px]';
 
 export function BottomBar() {
+  const t = useT();
   const projectId = useEditor((s) => s.projectId);
   const scene = useEditor((s) => s.scene);
   const undo = useEditor((s) => s.undo);
+  const applyPatch = useEditor((s) => s.applyPatch);
   const redo = useEditor((s) => s.redo);
   const undoCount = useEditor((s) => s.undoStack.length);
   const redoCount = useEditor((s) => s.redoStack.length);
@@ -126,31 +130,57 @@ export function BottomBar() {
     <div className="flex h-[62px] flex-shrink-0 items-center gap-2.5 overflow-x-auto border-t border-line bg-panel px-4">
       <div className="flex flex-shrink-0 gap-1">
         <Button variant="ghost" size="sm" icon="undo" disabled={undoCount === 0} onClick={undo} title="Undo (⌘Z)">
-          Undo
+          {t('Undo')}
         </Button>
         <Button variant="ghost" size="sm" icon="redo" disabled={redoCount === 0} onClick={redo} title="Redo (⇧⌘Z)">
-          Redo
+          {t('Redo')}
         </Button>
       </div>
 
-      {scene && scene.floors.length > 1 && (
+      {scene && (
         <div className={SEG_GROUP}>
           {scene.floors.map((floor) => (
             <Seg key={floor.id} active={activeFloorId === floor.id} onClick={() => setActiveFloor(floor.id)}>
               {floor.name}
             </Seg>
           ))}
+          <Seg
+            active={false}
+            onClick={() => {
+              // Tower/multi-unit workflow: clone the active floor N times, one
+              // undoable step per copy. Levels stack above the current top.
+              const src = scene.floors.find((f) => f.id === activeFloorId) ?? scene.floors[0];
+              if (!src) return;
+              const raw = window.prompt(`Duplicate "${src.name}" — how many copies?`, '1');
+              if (!raw) return;
+              const count = Math.min(50, Math.max(1, Math.floor(Number(raw))));
+              if (!Number.isFinite(count) || count < 1) return;
+              let level = Math.max(...scene.floors.map((f) => f.level));
+              for (let i = 0; i < count; i += 1) {
+                level += 1;
+                const newFloorId = `floor-${Date.now().toString(36)}${i.toString(36)}`;
+                applyPatch(
+                  makePatch(`Duplicate floor ${src.name}`, [
+                    { type: 'duplicate_floor', floorId: src.id, newFloorId, name: `Level ${level}`, level },
+                  ]),
+                );
+              }
+            }}
+            title="Duplicate the current floor (towers: enter how many copies)"
+          >
+            <Icon name="plus" />
+          </Seg>
         </div>
       )}
 
       <div className={SEG_GROUP}>
         {VIEW_MODES.map((mode) => (
           <Seg key={mode.id} active={viewMode === mode.id} onClick={() => setViewMode(mode.id)}>
-            <Icon name={mode.icon} /> {mode.label}
+            <Icon name={mode.icon} /> {t(mode.label)}
           </Seg>
         ))}
         <Seg active={viewMode === 'tour'} onClick={startTour} title="Guided walkthrough through each room">
-          <Icon name="play" /> Tour
+          <Icon name="play" /> {t('Tour')}
         </Seg>
       </div>
       {viewMode === 'walk' && (
@@ -161,10 +191,10 @@ export function BottomBar() {
 
       <div className="ml-auto flex flex-shrink-0 items-center gap-1.5">
         <Button variant="secondary" size="sm" icon="camera" onClick={() => void onSavePhoto()} disabled={!canShoot || shooting} title="Export a PNG of the current view">
-          {shooting ? 'Saving…' : 'Photo'}
+          {shooting ? t('Saving…') : t('Photo')}
         </Button>
         <Button variant="primary" size="sm" icon="sun" onClick={() => setPhotoMode(true)} title="Photoreal path-traced render (GPU)">
-          Photoreal
+          {t('Photoreal')}
         </Button>
         {blenderAvailable && (
           <Button
@@ -175,7 +205,7 @@ export function BottomBar() {
             disabled={rendering || !scene}
             title="Max-quality ray-traced still via your local Blender Cycles (slower; opens when done)"
           >
-            {rendering ? 'Rendering…' : 'Cycles'}
+            {rendering ? t('Rendering…') : 'Cycles'}
           </Button>
         )}
         {blenderAvailable && (
@@ -187,7 +217,7 @@ export function BottomBar() {
             disabled={!scene}
             title="Queue a Cycles render of every room + floor overviews — runs in the background"
           >
-            Render all
+            {t('Render all')}
           </Button>
         )}
 
@@ -201,7 +231,7 @@ export function BottomBar() {
           title="Compare with the scene as loaded"
           className={showBefore ? 'border-accent bg-accent text-white hover:bg-[#403bd6]' : ''}
         >
-          {showBefore ? 'Before' : 'Before/After'}
+          {showBefore ? t('Before') : t('Before/After')}
         </Button>
         <Button
           variant="secondary"
@@ -211,7 +241,7 @@ export function BottomBar() {
           title="Drag a slider to wipe between the baseline and your edits"
           className={compareMode === 'slider' ? 'border-accent bg-accent text-white hover:bg-[#403bd6]' : ''}
         >
-          Slider
+          {t('Slider')}
         </Button>
 
         <span className="mx-0.5 h-[26px] w-px bg-line" />
@@ -221,7 +251,7 @@ export function BottomBar() {
           value={activeVariantId ?? ''}
           onChange={(e) => e.target.value && void loadVariant(e.target.value)}
         >
-          <option value="">Variants…</option>
+          <option value="">{t('Variants…')}</option>
           {variants.map((v) => (
             <option key={v.id} value={v.id}>
               {v.name}
@@ -229,7 +259,7 @@ export function BottomBar() {
           ))}
         </select>
         <Button variant="secondary" size="sm" icon="save" onClick={() => void onSave()} disabled={saving}>
-          {saving ? 'Saving…' : 'Save'}
+          {saving ? t('Saving…') : t('Save')}
         </Button>
         <Button
           variant="secondary"
@@ -244,7 +274,7 @@ export function BottomBar() {
             a.click();
           }}
         >
-          Share
+          {t('Share')}
         </Button>
         <Button
           variant="dark"
@@ -258,7 +288,7 @@ export function BottomBar() {
             a.click();
           }}
         >
-          Export
+          {t('Export')}
         </Button>
       </div>
       <BatchRenderDialog open={batchOpen} onClose={() => setBatchOpen(false)} projectId={projectId} />

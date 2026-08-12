@@ -23,6 +23,7 @@ import { LicenseDialog, useLicense } from '../components/ui/LicenseDialog';
 import { ProfileDialog } from '../components/ui/ProfileDialog';
 import { Chip, FOCUS_RING, Mono, SectionLabel, Segmented } from '../components/ui/primitives';
 import { reportError } from '../store/error-store';
+import { useT } from '../i18n';
 
 type View = 'all' | 'recent' | 'templates' | 'trash';
 type Filter = 'all' | 'homes' | 'apartments' | 'samples';
@@ -259,6 +260,7 @@ function ProjectCard({
 }
 
 function UploadTile({ onClick }: { onClick: () => void }) {
+  const t = useT();
   return (
     <button
       type="button"
@@ -268,8 +270,8 @@ function UploadTile({ onClick }: { onClick: () => void }) {
       <span className="flex h-[46px] w-[46px] items-center justify-center rounded-xl bg-wash text-accent">
         <Icon name="plus" className="text-[22px]" strokeWidth={2.2} />
       </span>
-      <span className="text-[14.5px] font-semibold text-ink">Upload &amp; trace a plan</span>
-      <span className="text-[12.5px] text-faint">PDF, PNG or JPG</span>
+      <span className="text-[14.5px] font-semibold text-ink">{t('Upload & trace a plan')}</span>
+      <span className="text-[12.5px] text-faint">{t('PDF, PNG or JPG')}</span>
     </button>
   );
 }
@@ -431,6 +433,7 @@ interface OnboardingStepDef {
  *  a mono N/M progress readout, and a dismiss control. Each row is a deep link
  *  (or a button for the one step that opens a dialog) with an ok-tint check when done. */
 function OnboardingChecklist({ steps, onDismiss }: { steps: OnboardingStepDef[]; onDismiss: () => void }) {
+  const t = useT();
   const done = steps.filter((s) => s.done).length;
   return (
     <div className="mb-5 flex items-start gap-3 rounded-xl border border-wash-line bg-wash p-4">
@@ -439,7 +442,7 @@ function OnboardingChecklist({ steps, onDismiss }: { steps: OnboardingStepDef[];
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-3">
-          <span className="text-[14px] font-bold text-ink">Get started</span>
+          <span className="text-[14px] font-bold text-ink">{t('Get started')}</span>
           <div className="flex flex-shrink-0 items-center gap-2.5">
             <Mono className="text-[11.5px] font-semibold text-accent">
               {done}/{steps.length}
@@ -487,6 +490,7 @@ function OnboardingChecklist({ steps, onDismiss }: { steps: OnboardingStepDef[];
 }
 
 export function HomePage() {
+  const t = useT();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { data: projects = [], isLoading: projectsLoading } = useQuery({ queryKey: ['projects'], queryFn: fetchProjects });
@@ -733,7 +737,7 @@ export function HomePage() {
           <input
             type="search"
             aria-label="Search projects"
-            placeholder="Search projects, rooms, materials…"
+            placeholder={t('Search projects, rooms, materials…')}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="min-w-0 flex-1 bg-transparent text-[14px] text-ink outline-none placeholder:text-faint"
@@ -742,7 +746,7 @@ export function HomePage() {
         <span className="flex-1" />
         <div className="hidden lg:block">
           <Chip tone="accent" dot>
-            Local-first · nothing leaves this machine
+            {t('Local-first · nothing leaves this machine')}
           </Chip>
         </div>
         {licenseState && (
@@ -790,7 +794,7 @@ export function HomePage() {
           className={`inline-flex h-9 flex-shrink-0 items-center gap-2 rounded-[10px] border border-line bg-panel px-3.5 text-[13.5px] font-semibold text-dim transition hover:bg-soft hover:text-ink disabled:opacity-50 ${FOCUS_RING}`}
         >
           <Icon name="upload" className="text-[15px] rotate-180" strokeWidth={2} />
-          <span className="hidden sm:inline">{importing ? 'Importing…' : 'Import'}</span>
+          <span className="hidden sm:inline">{importing ? 'Importing…' : t('Import')}</span>
         </button>
         <button
           type="button"
@@ -798,14 +802,14 @@ export function HomePage() {
           className="inline-flex items-center gap-2 rounded-[10px] bg-accent px-4 py-2.5 text-[14px] font-semibold text-white hc-glow transition hover:bg-[#403bd6]"
         >
           <Icon name="plus" className="text-[16px]" strokeWidth={2.2} />
-          <span className="hidden sm:inline">New project</span>
+          <span className="hidden sm:inline">{t('New project')}</span>
         </button>
       </header>
 
       <div className="flex min-h-0 flex-1">
         {/* library sidebar — real navigation */}
         <aside className="hidden w-[236px] flex-col gap-1 border-r border-line bg-sidebar p-3.5 lg:flex">
-          <SectionLabel className="px-2.5 pb-2">Library</SectionLabel>
+          <SectionLabel className="px-2.5 pb-2">{t('Library')}</SectionLabel>
           {NAV.map((it) => {
             const active = view === it.key;
             return (
@@ -817,14 +821,14 @@ export function HomePage() {
                 }`}
               >
                 <Icon name={it.icon} className="text-[17px]" strokeWidth={1.9} />
-                {it.label}
+                {t(it.label)}
               </button>
             );
           })}
           <span className="flex-1" />
           <div className="flex flex-col gap-2.5 rounded-xl border border-line bg-panel p-3.5">
             <span className="flex justify-between text-[12px] font-semibold text-dim">
-              <span>Local storage</span>
+              <span>{t('Local storage')}</span>
               <Mono className="text-faint">{storage ? formatBytes(storage.totalBytes) : '—'}</Mono>
             </span>
             {/* Stacked breakdown (assets / scenes+backups / app data) — shares of the
@@ -850,7 +854,7 @@ export function HomePage() {
         <main className="min-w-0 flex-1 overflow-y-auto px-6 py-7 sm:px-8">
           <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h1 className="text-[27px] font-extrabold tracking-[-0.6px]">{titles[view].h}</h1>
+              <h1 className="text-[27px] font-extrabold tracking-[-0.6px]">{t(titles[view].h)}</h1>
               <span className="text-[14px] text-faint">{titles[view].sub}</span>
             </div>
             {showToolbar && (

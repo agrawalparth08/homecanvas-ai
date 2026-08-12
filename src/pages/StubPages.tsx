@@ -12,6 +12,7 @@ import { Button } from '../components/ui/Button';
 import { Icon } from '../components/ui/Icon';
 import { ProfileDialog } from '../components/ui/ProfileDialog';
 import { Chip, FOCUS_RING, Mono, SectionLabel } from '../components/ui/primitives';
+import { useT } from '../i18n';
 
 function Stub({ title, phase, children }: { title: string; phase: string; children: React.ReactNode }) {
   return (
@@ -82,6 +83,7 @@ const PRINT_STYLE = `
 `;
 
 export function VariantsPage() {
+  const t = useT();
   const scene = useEditor((s) => s.scene);
   const baseline = useEditor((s) => s.baseline);
   const projectId = useEditor((s) => s.projectId);
@@ -135,11 +137,11 @@ export function VariantsPage() {
         <span className="hidden sm:inline">HomeCanvas AI</span>
       </Link>
       <span className="hidden h-[22px] w-px flex-shrink-0 bg-line sm:block" />
-      <h1 className="text-[14px] font-semibold text-ink">Boards</h1>
+      <h1 className="text-[14px] font-semibold text-ink">{t('Boards')}</h1>
       {scene && <span className="truncate text-[13px] text-dim">{scene.name}</span>}
       <span className="ml-auto flex flex-shrink-0 items-center gap-2">
         <Button variant="ghost" size="sm" icon="user" onClick={() => setProfileOpen(true)}>
-          Brand
+          {t('Brand')}
         </Button>
         {scene && (
           <Button
@@ -157,12 +159,12 @@ export function VariantsPage() {
               setTimeout(() => URL.revokeObjectURL(url), 5000);
             }}
           >
-            Export BOQ
+            {t('Export BOQ')}
           </Button>
         )}
         {scene && (
           <Button variant="dark" size="sm" icon="save" onClick={() => window.print()} title="Export the boards as a branded PDF">
-            Export PDF
+            {t('Export PDF')}
           </Button>
         )}
         <Link

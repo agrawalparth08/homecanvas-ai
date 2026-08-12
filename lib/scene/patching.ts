@@ -119,6 +119,17 @@ export const PatchOpSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('set_lock'), lock: LockConstraintSchema }),
   z.object({ type: z.literal('remove_lock'), lockId: EntityId }),
 
+  // floors: tower/multi-unit workflows — clone a typical floor N times
+  z.object({
+    type: z.literal('duplicate_floor'),
+    floorId: EntityId,
+    /** Caller-minted id for the copy (kept explicit so the op is replayable). */
+    newFloorId: EntityId,
+    name: z.string().min(1),
+    level: z.number().int(),
+  }),
+  z.object({ type: z.literal('remove_floor'), floorId: EntityId }),
+
   // scale: atomic per-floor geometry rewrite — NOT a parameter tweak
   z.object({
     type: z.literal('recalibrate_floor'),

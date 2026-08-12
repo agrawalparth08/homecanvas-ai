@@ -1,8 +1,14 @@
 # Platform walkthrough teaser (real-footage cut)
 
-`../../docs/homecanvas-walkthrough.mp4` — 71s, 1080p30, narrated (macOS `say`
-voice "Rishi", the documented local fallback; set `ELEVENLABS_API_KEY` and use
-the parent project's narration script for the premium voice).
+`../../docs/homecanvas-walkthrough.mp4` — 67s, 1080p30, narrated with the AI
+Tokenomics ElevenLabs voice **inv_voice_1** (`EKYQ0Yq4eLPupAut2PUr`) via
+`eleven_multilingual_v2` tuned (stability 0.48 / similarity 0.75 / style 0.05).
+That engine is what the tokenomics `VOICE-settings.md` recommends for SHORT
+narration beats — `eleven_v3` garbles word onsets under ~250 chars, which is
+why the first cut (macOS `say`) sounded rough. Regenerate the VO with
+`./generate-narration.sh <outdir>` (reads the key from
+`~/.config/ai-tokenomics/elevenlabs.key`, never stored here), then re-run
+`build-teaser.sh`.
 
 Pipeline (all under this folder; paths in the scripts point at the session
 scratchpad — repoint `S=`/`CLIPS=` before re-running):

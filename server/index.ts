@@ -14,6 +14,7 @@ import { buildSceneExport } from './export';
 import { buildViewerHtml, viewerExportAvailable } from './viewer-export';
 import { batchFilePath, batchStatus, startBatch } from './render-batch';
 import { exportBundle, importBundle } from './bundles';
+import { activateLicense, deactivateLicense, licenseStatus, proGated } from './license';
 import { detectBlender, readRender, renderWithBlender } from './adapters/blender';
 import { cubicasaAvailable, runCubicasaSidecar } from './adapters/cubicasa';
 import { DesignVariantSchema, HomeSceneSchema } from '../lib/scene/schemas';
@@ -100,8 +101,23 @@ app.post('/api/render/blender', async (c) => {
   return c.body(await readRender(result.pngPath), 200, { 'Content-Type': 'image/png', 'Cache-Control': 'no-store' });
 });
 
+// Offline licensing — trial/licensed/expired. Never gates editing or the
+// user's own data exports; only the pro OUTPUT endpoints below check it.
+app.get('/api/license/status', async (c) => c.json(await licenseStatus()));
+
+app.post('/api/license/activate', async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as { key?: string };
+  if (!body.key?.trim()) return c.json({ error: 'key required' }, 400);
+  const result = await activateLicense(body.key);
+  if ('error' in result) return c.json({ error: result.error }, 400);
+  return c.json(result);
+});
+
+app.post('/api/license/deactivate', async (c) => c.json(await deactivateLicense()));
+
 // Batch render queue — every room + floor overviews through Blender Cycles.
 app.post('/api/render/batch', async (c) => {
+  if (await proGated()) return c.json({ error: 'Your 14-day trial has ended — batch renders need HomeCanvas Pro. Enter a key from the Home screen.' }, 402);
   const body = (await c.req.json().catch(() => ({}))) as { projectId?: string; samples?: number };
   const projectId = body.projectId ?? '';
   if (!isProjectId(projectId)) return c.json({ error: 'unknown project' }, 404);
@@ -297,6 +313,7 @@ app.get('/api/scenes/:projectId/viewer/available', async (c) =>
 );
 
 app.get('/api/scenes/:projectId/viewer', async (c) => {
+  if (await proGated()) return c.json({ error: 'Your 14-day trial has ended — client viewer exports need HomeCanvas Pro. Enter a key from the Home screen.' }, 402);
   const projectId = c.req.param('projectId');
   if (!isProjectId(projectId)) return c.json({ error: 'unknown project' }, 404);
   let scene;

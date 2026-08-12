@@ -19,6 +19,7 @@ import {
 import { Button } from '../components/ui/Button';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Icon, type IconName } from '../components/ui/Icon';
+import { LicenseDialog, useLicense } from '../components/ui/LicenseDialog';
 import { ProfileDialog } from '../components/ui/ProfileDialog';
 import { Chip, FOCUS_RING, Mono, SectionLabel, Segmented } from '../components/ui/primitives';
 import { reportError } from '../store/error-store';
@@ -508,6 +509,8 @@ export function HomePage() {
   const [creating, setCreating] = useState(false);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [licenseOpen, setLicenseOpen] = useState(false);
+  const { data: licenseState } = useLicense();
   const [onboarding, setOnboarding] = useState<OnboardingState>(() => readOnboarding());
 
   // On completion, refresh what the download actually changed.
@@ -742,6 +745,27 @@ export function HomePage() {
             Local-first · nothing leaves this machine
           </Chip>
         </div>
+        {licenseState && (
+          <button
+            type="button"
+            onClick={() => setLicenseOpen(true)}
+            title={licenseState.state === 'licensed' ? `Licensed to ${licenseState.email}` : 'Trial & license'}
+            className={`hidden h-9 flex-shrink-0 items-center gap-1.5 rounded-[10px] border px-3 text-[12.5px] font-semibold transition sm:inline-flex ${FOCUS_RING} ${
+              licenseState.state === 'expired'
+                ? 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100'
+                : licenseState.state === 'licensed'
+                  ? 'border-line bg-panel text-dim hover:bg-soft'
+                  : 'border-wash-line bg-wash text-accent hover:bg-[#e4e2fb]'
+            }`}
+          >
+            <Icon name="sparkles" className="text-[13px]" />
+            {licenseState.state === 'licensed'
+              ? 'Pro'
+              : licenseState.state === 'expired'
+                ? 'Trial ended'
+                : `Trial · ${licenseState.trialDaysLeft}d`}
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setProfileOpen(true)}
@@ -993,6 +1017,7 @@ export function HomePage() {
 
       <CreateProjectDialog open={createOpen} creating={creating} onCreate={(n, k) => void onCreateProject(n, k)} onCancel={() => setCreateOpen(false)} />
       <ProfileDialog open={profileOpen} onClose={() => setProfileOpen(false)} />
+      <LicenseDialog open={licenseOpen} onClose={() => setLicenseOpen(false)} />
     </div>
   );
 }

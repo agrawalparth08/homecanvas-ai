@@ -95,15 +95,17 @@ function roomCamera(room: Room, objects: FurnitureObject[]): { cam: string; targ
     }
   }
 
-  // Aim at the furniture (what the client cares about), pulled 35% toward the
-  // room centre so a wall-hugging wardrobe doesn't drag the view into a wall.
+  // Aim mostly at the room centre, nudged 20% toward the furniture. Aiming AT
+  // the furniture centroid backfires in small rooms — a bed two metres from
+  // the lens fills the whole frame; the centre keeps the room readable while
+  // the nudge still tips the composition toward what the client cares about.
   let tx = cx;
   let ty = cy;
   if (items.length) {
     const fx = items.reduce((s, o) => s + o.transform.x, 0) / items.length;
     const fy = items.reduce((s, o) => s + o.transform.y, 0) / items.length;
-    tx = fx + (cx - fx) * 0.35;
-    ty = fy + (cy - fy) * 0.35;
+    tx = cx + (fx - cx) * 0.2;
+    ty = cy + (fy - cy) * 0.2;
   }
   return {
     cam: `${(best[0] * MM).toFixed(3)},${(best[1] * MM).toFixed(3)},1.55`,
